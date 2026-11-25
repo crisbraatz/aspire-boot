@@ -41,6 +41,7 @@ builder.Host.UseWolverine(options =>
     options.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
     options.UseRabbitMqUsingNamedConnection("rabbitmq").AutoProvision();
     options.ListenToRabbitQueue("identity-notifications");
+    options.ListenToRabbitQueue("identity-avatars");
     options.Discovery.IncludeAssembly(typeof(SendConfirmationEmailHandler).Assembly);
 
     options.Services.CritterStackDefaults(defaults =>

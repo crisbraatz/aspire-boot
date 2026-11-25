@@ -49,6 +49,8 @@ builder.Host.UseWolverine(options =>
     options.PublishMessage<RecoveryEmailRequested>().ToRabbitQueue("identity-notifications");
     options.PublishMessage<PasskeyAddedNotification>().ToRabbitQueue("identity-notifications");
     options.PublishMessage<PasskeyRemovedNotification>().ToRabbitQueue("identity-notifications");
+    options.PublishMessage<AvatarObjectSuperseded>().ToRabbitQueue("identity-avatars");
+    options.PublishMessage<AvatarObjectOrphanCheck>().ToRabbitQueue("identity-avatars");
 
     options.Services.CritterStackDefaults(defaults =>
     {

@@ -2,8 +2,11 @@ using Amazon.Runtime;
 using Amazon.S3;
 
 using AspireBoot.Core.Infrastructure.Email;
+using AspireBoot.Core.Infrastructure.Images;
 using AspireBoot.Core.Infrastructure.Storage;
 using AspireBoot.Core.Persistence;
+
+using JasperFx.CommandLine.Descriptions;
 
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -40,6 +43,18 @@ public static class CoreServiceCollectionExtensions
             var config = new AmazonS3Config { ServiceURL = storage.ServiceUrl, ForcePathStyle = true };
             return new AmazonS3Client(new BasicAWSCredentials(storage.AccessKey, storage.SecretKey), config);
         });
+        services.AddSingleton<IAvatarStorage, S3AvatarStorage>();
+        // Provisions the private bucket in `resources setup` and at host startup (AddResourceSetupOnStartup). JasperFx
+        // only discovers resources through system parts, so the bucket is reported by StorageSystemPart.
+        services.AddSingleton<StorageBucketResource>();
+        services.AddSingleton<ISystemPart>(provider => new StorageSystemPart(provider.GetRequiredService<StorageBucketResource>()));
+
+        services.AddOptions<AvatarOptions>()
+            .Bind(configuration.GetSection(AvatarOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<AvatarImageProcessor>();
+        services.AddSingleton<AvatarProcessingLimiter>();
 
         services.AddHybridCache();
 

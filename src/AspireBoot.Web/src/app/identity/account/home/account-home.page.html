@@ -1,10 +1,202 @@
-<section aria-labelledby="account-heading" class="mx-auto w-full max-w-md space-y-6">
+<section aria-labelledby="account-heading" class="mx-auto w-full max-w-md space-y-8">
   <h1 id="account-heading" class="text-3xl font-bold tracking-tight">
     {{ 'account.home.heading' | t }}
   </h1>
 
   @if (session.currentUser(); as user) {
     <p class="text-lg">{{ 'account.home.signedInAs' | t: { name: user.displayName } }}</p>
+
+    <section aria-labelledby="profile-heading" class="space-y-4">
+      <h2 id="profile-heading" class="text-xl font-semibold">
+        {{ 'account.profile.heading' | t }}
+      </h2>
+
+      <form data-form="profile" novalidate class="space-y-5" (submit)="saveProfile($event)">
+        @let problem = nameError();
+
+        <div class="space-y-1">
+          <label for="account-name" class="block text-sm font-medium">
+            {{ 'account.profile.name.label' | t }}
+          </label>
+          <input
+            id="account-name"
+            type="text"
+            autocomplete="name"
+            [formField]="profileForm.displayName"
+            class="block min-h-11 w-full rounded-md border border-slate-600 bg-white px-3 py-2 text-base text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-100"
+            [attr.aria-invalid]="problem ? 'true' : null"
+            [attr.aria-describedby]="problem ? 'account-name-error' : null"
+          />
+          @if (problem) {
+            <p id="account-name-error" class="text-sm text-red-900 dark:text-red-200">
+              {{ problem }}
+            </p>
+          }
+        </div>
+
+        <div class="space-y-1">
+          <label for="account-email" class="block text-sm font-medium">
+            {{ 'account.profile.email.label' | t }}
+          </label>
+          <input
+            id="account-email"
+            type="email"
+            readonly
+            [value]="user.email"
+            aria-describedby="account-email-hint"
+            class="block min-h-11 w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-base text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+          />
+          <p id="account-email-hint" class="text-sm text-slate-600 dark:text-slate-300">
+            {{ 'account.profile.email.hint' | t }}
+          </p>
+        </div>
+
+        <div aria-live="polite" role="status" class="min-h-6 text-sm">
+          @if (profileStatus(); as status) {
+            <span>{{ text(status) }}</span>
+          }
+        </div>
+        @if (profileNotice(); as notice) {
+          <p
+            role="alert"
+            class="rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100"
+          >
+            {{ text(notice) }}
+          </p>
+        }
+
+        <button
+          type="submit"
+          class="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          [disabled]="profileBusy()"
+          [attr.aria-busy]="profileBusy()"
+        >
+          {{ 'account.profile.save' | t }}
+        </button>
+      </form>
+    </section>
+
+    <section aria-labelledby="avatar-heading" class="space-y-4">
+      <h2 id="avatar-heading" class="text-xl font-semibold">
+        {{ 'account.profile.avatar.heading' | t }}
+      </h2>
+
+      <div class="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+        <ab-avatar [name]="user.displayName" [url]="user.avatarUrl" size="lg" />
+
+        <div class="w-full space-y-3">
+          <div
+            data-action="choose-avatar"
+            role="button"
+            tabindex="0"
+            aria-describedby="avatar-hint"
+            [attr.aria-disabled]="avatarBusy()"
+            class="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-slate-500 p-4 text-center text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+            [class.border-brand-600]="avatarDragging()"
+            [class.bg-brand-50]="avatarDragging()"
+            (keydown.enter)="openPicker($event)"
+            (keydown.space)="openPicker($event)"
+            (click)="openPicker($event)"
+            (dragover)="onDragOver($event)"
+            (dragleave)="onDragLeave()"
+            (drop)="onDrop($event)"
+          >
+            <span class="font-medium">{{ 'account.profile.avatar.dropzone' | t }}</span>
+          </div>
+          <p id="avatar-hint" class="text-sm text-slate-600 dark:text-slate-300">
+            {{ 'account.profile.avatar.dropHint' | t: { megabytes: maxAvatarMegabytes } }}
+          </p>
+
+          <div class="space-y-1">
+            <label for="avatar-file" class="block text-sm font-medium">
+              {{ 'account.profile.avatar.choose' | t }}
+            </label>
+            <input
+              #avatarInput
+              id="avatar-file"
+              type="file"
+              [attr.accept]="avatarTypes"
+              [disabled]="avatarBusy()"
+              (change)="onFileChosen($event)"
+              class="block w-full text-sm file:mr-3 file:min-h-11 file:rounded-md file:border file:border-slate-600 file:bg-white file:px-4 file:py-2 file:font-medium file:text-slate-900 hover:file:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:file:border-slate-400 dark:file:bg-slate-900 dark:file:text-slate-100"
+            />
+          </div>
+
+          <div aria-live="polite" role="status" class="min-h-6 text-sm">
+            @if (avatarBusy()) {
+              <span>{{ 'account.profile.avatar.uploading' | t }}</span>
+            } @else if (avatarStatus(); as status) {
+              <span>{{ text(status) }}</span>
+            }
+          </div>
+          @if (avatarNotice(); as notice) {
+            <p
+              role="alert"
+              class="rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100"
+            >
+              {{ text(notice) }}
+            </p>
+          }
+
+          @if (hasAvatar()) {
+            @if (confirmingRemove()) {
+              <div class="space-y-3 rounded-md border border-slate-600 p-4 dark:border-slate-400">
+                <p>{{ 'account.profile.avatar.removeConfirm' | t }}</p>
+                <div class="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    data-action="confirm-remove-avatar"
+                    class="inline-flex min-h-11 items-center justify-center rounded-md bg-red-800 px-4 py-2 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-60"
+                    [disabled]="avatarBusy()"
+                    (click)="removeAvatar()"
+                  >
+                    {{ 'account.profile.avatar.confirmRemove' | t }}
+                  </button>
+                  <button
+                    type="button"
+                    data-action="cancel-remove-avatar"
+                    class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-600 px-4 py-2 font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+                    (click)="cancelRemoveAvatar()"
+                  >
+                    {{ 'account.profile.avatar.cancel' | t }}
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <button
+                type="button"
+                data-action="remove-avatar"
+                class="inline-flex min-h-11 items-center font-medium text-brand-700 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-brand-100"
+                [disabled]="avatarBusy()"
+                (click)="askRemoveAvatar()"
+              >
+                {{ 'account.profile.avatar.remove' | t }}
+              </button>
+            }
+          }
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="language-heading" class="space-y-2">
+      <h2 id="language-heading" class="text-xl font-semibold">
+        {{ 'account.profile.language.heading' | t }}
+      </h2>
+      <label for="account-culture" class="block text-sm font-medium">
+        {{ 'account.profile.language.label' | t }}
+      </label>
+      <select
+        id="account-culture"
+        class="block min-h-11 w-full rounded-md border border-slate-600 bg-white px-3 py-2 text-base text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:w-auto dark:border-slate-400 dark:bg-slate-900 dark:text-slate-100"
+        (change)="changeCulture($event)"
+      >
+        @for (culture of cultures; track culture) {
+          <option [value]="culture" [selected]="culture === i18n.culture()">
+            {{ cultureLabel(culture) }}
+          </option>
+        }
+      </select>
+    </section>
   }
 
   <ul class="space-y-3">

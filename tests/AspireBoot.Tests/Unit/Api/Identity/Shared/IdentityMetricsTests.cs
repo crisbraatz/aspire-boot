@@ -73,6 +73,32 @@ public sealed class IdentityMetricsTests : IDisposable
     }
 
     [Fact]
+    public void RecordAvatarUpload_TagsTheOutcome()
+    {
+        string[] outcomes = ["stored", "rejected_type", "rejected_size", "rejected_dimensions", "corrupt", "storage_error", "conflict"];
+
+        foreach (var outcome in outcomes)
+        {
+            IdentityMetrics.RecordAvatarUpload(outcome);
+        }
+
+        Assert.Equal(outcomes, _measurements.Select(m => (string)m.Tags["outcome"]!));
+        Assert.All(_measurements, m => Assert.Equal("aspireboot.identity.avatar.uploads", m.Name));
+        Assert.All(_measurements, m => Assert.Equal(1, m.Value));
+    }
+
+    [Fact]
+    public void RecordAvatarRemoval_IncrementsItsCounterWithoutTags()
+    {
+        IdentityMetrics.RecordAvatarRemoval();
+
+        var measurement = Assert.Single(_measurements);
+        Assert.Equal("aspireboot.identity.avatar.removals", measurement.Name);
+        Assert.Equal(1, measurement.Value);
+        Assert.Empty(measurement.Tags);
+    }
+
+    [Fact]
     public void RecordRateLimited_TagsThePolicyName()
     {
         IdentityMetrics.RecordRateLimited("signup");

@@ -190,6 +190,26 @@ describe('Session', () => {
 
     expect(TestBed.inject(I18n).culture()).toBe('pt-BR');
   });
+
+  it('patches the current user in place without calling the server', async () => {
+    const load = session.refresh();
+    httpTesting.expectOne('/api/identity/account/me').flush(ANA);
+    await load;
+
+    session.patchUser({ displayName: 'Ana Maria', avatarUrl: '/api/identity/account/avatar/1' });
+
+    expect(session.currentUser()).toEqual({
+      ...ANA,
+      displayName: 'Ana Maria',
+      avatarUrl: '/api/identity/account/avatar/1',
+    });
+  });
+
+  it('ignores patches while anonymous', () => {
+    session.patchUser({ displayName: 'Ghost' });
+
+    expect(session.currentUser()).toBeNull();
+  });
 });
 
 async function flushCatalog(testing: HttpTestingController, culture: string): Promise<void> {

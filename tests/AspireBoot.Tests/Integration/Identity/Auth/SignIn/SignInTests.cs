@@ -8,6 +8,7 @@ using AspireBoot.Tests.Support.WebAuthn;
 namespace AspireBoot.Tests.Integration.Identity.Auth.SignIn;
 
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class SignInTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private const string SessionCookiePrefix = "__Host-aspireboot=";

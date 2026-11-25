@@ -5,6 +5,7 @@ using AspireBoot.Tests.Integration.Infrastructure;
 namespace AspireBoot.Tests.Integration.Platform.Health;
 
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class HealthTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private readonly AspireBootApiFactory _factory = new(infrastructure);

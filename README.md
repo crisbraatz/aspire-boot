@@ -16,7 +16,8 @@ AspireBoot is an open-source .NET Aspire template for builders, from experienced
 | Database | PostgreSQL 19 + EF Core 10 migrations |
 | Messaging | RabbitMQ 4 + Wolverine (transactional outbox and durable inbox) |
 | Cache | Redis 8 + HybridCache |
-| File storage | RustFS (S3-compatible) |
+| File storage | RustFS (S3-compatible, private bucket) |
+| Profile avatars | SkiaSharp (MIT): every upload is re-encoded to a 256x256 WebP without metadata |
 | Email | MailKit, with Mailpit capturing every email locally |
 | HTTPS / reverse proxy | Caddy (automatic Let's Encrypt in production) |
 | Observability | OpenTelemetry logs, metrics and traces across API → queue → Worker |

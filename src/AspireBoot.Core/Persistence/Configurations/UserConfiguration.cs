@@ -22,5 +22,25 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Property(user => user.CreatedAt).IsRequired();
         builder.HasIndex(user => user.CreatedAt);
+
+        // Avatar is derived from the stored key and AvatarVersion, so the key is persisted through its backing field.
+        builder.Ignore(user => user.Avatar);
+
+        builder.Property<string?>("avatarKey")
+            .HasField("avatarKey")
+            .HasColumnName("avatar_key")
+            .HasMaxLength(200);
+
+        builder.Property(user => user.AvatarVersion)
+            .HasColumnName("avatar_version")
+            .HasDefaultValue(0)
+            .IsRequired();
+
+        // PostgreSQL xmin is a system column: no DDL, no domain property. It detects concurrent updates.
+        builder.Property<uint>("xmin")
+            .HasColumnType("xid")
+            .HasColumnName("xmin")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
     }
 }

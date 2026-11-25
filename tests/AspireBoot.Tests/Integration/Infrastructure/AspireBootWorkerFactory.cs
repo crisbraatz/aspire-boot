@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace AspireBoot.Tests.Integration.Infrastructure;
 
 /// <summary>Hosts the real Worker in memory, wired to the containers from <see cref="InfrastructureFixture"/>.</summary>
+[Collection(SharedInfrastructure.Name)]
 public sealed class AspireBootWorkerFactory(InfrastructureFixture infrastructure) : WebApplicationFactory<WorkerApp::AspireBoot.Worker.Program>
 {
     static AspireBootWorkerFactory()
@@ -26,8 +27,9 @@ public sealed class AspireBootWorkerFactory(InfrastructureFixture infrastructure
         builder.UseSetting("Email:Port", infrastructure.SmtpPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
         builder.UseSetting("Email:UseTls", "false");
         builder.UseSetting("Email:FromAddress", "no-reply@aspireboot.test");
-        builder.UseSetting("Storage:ServiceUrl", "http://localhost:9000");
-        builder.UseSetting("Storage:AccessKey", "test");
-        builder.UseSetting("Storage:SecretKey", "test-secret");
+        builder.UseSetting("Storage:ServiceUrl", infrastructure.StorageServiceUrl);
+        builder.UseSetting("Storage:AccessKey", infrastructure.StorageAccessKey);
+        builder.UseSetting("Storage:SecretKey", infrastructure.StorageSecretKey);
+        builder.UseSetting("Storage:Bucket", infrastructure.StorageBucket);
     }
 }

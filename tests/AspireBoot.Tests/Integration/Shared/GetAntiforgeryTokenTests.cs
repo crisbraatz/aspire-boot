@@ -6,6 +6,7 @@ using AspireBoot.Tests.Integration.Infrastructure;
 namespace AspireBoot.Tests.Integration.Shared;
 
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class GetAntiforgeryTokenTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private readonly AspireBootApiFactory _factory = new(infrastructure);

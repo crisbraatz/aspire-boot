@@ -33,6 +33,12 @@ internal static class IdentityMetrics
     private static readonly Counter<long> RecoveriesCompleted = Meter.CreateCounter<long>(
         "aspireboot.identity.recoveries_completed", "{recovery}", "Recovery links used to register a new passkey.");
 
+    private static readonly Counter<long> AvatarUploads = Meter.CreateCounter<long>(
+        "aspireboot.identity.avatar.uploads", "{upload}", "Avatar uploads, tagged by outcome.");
+
+    private static readonly Counter<long> AvatarRemovals = Meter.CreateCounter<long>(
+        "aspireboot.identity.avatar.removals", "{avatar}", "Avatars removed.");
+
     private static readonly Counter<long> RateLimited = Meter.CreateCounter<long>(
         "aspireboot.identity.rate_limited", "{request}", "Requests rejected with 429, tagged by rate-limit policy.");
 
@@ -50,6 +56,12 @@ internal static class IdentityMetrics
     public static void RecordRecoveryRequested() => RecoveriesRequested.Add(1);
 
     public static void RecordRecoveryCompleted() => RecoveriesCompleted.Add(1);
+
+    /// <param name="outcome">stored, rejected_type, rejected_size, rejected_dimensions, corrupt, storage_error or conflict (retries ran out).</param>
+    public static void RecordAvatarUpload(string outcome) =>
+        AvatarUploads.Add(1, new KeyValuePair<string, object?>("outcome", outcome));
+
+    public static void RecordAvatarRemoval() => AvatarRemovals.Add(1);
 
     public static void RecordRateLimited(string policy) =>
         RateLimited.Add(1, new KeyValuePair<string, object?>("policy", policy));

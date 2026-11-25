@@ -1,10 +1,14 @@
 using AspireBoot.Api.Identity.Account.AddPasskey;
 using AspireBoot.Api.Identity.Account.BeginAddPasskey;
+using AspireBoot.Api.Identity.Account.GetAvatar;
 using AspireBoot.Api.Identity.Account.GetMe;
 using AspireBoot.Api.Identity.Account.ListPasskeys;
+using AspireBoot.Api.Identity.Account.RemoveAvatar;
 using AspireBoot.Api.Identity.Account.RemovePasskey;
 using AspireBoot.Api.Identity.Account.RenamePasskey;
 using AspireBoot.Api.Identity.Account.UpdatePreferences;
+using AspireBoot.Api.Identity.Account.UpdateProfile;
+using AspireBoot.Api.Identity.Account.UploadAvatar;
 using AspireBoot.Api.Identity.Auth.BeginRegistration;
 using AspireBoot.Api.Identity.Auth.BeginSignIn;
 using AspireBoot.Api.Identity.Auth.CompleteRegistration;
@@ -54,6 +58,10 @@ internal static class EndpointMapping
         var account = identity.MapGroup("/account");
         GetMeEndpoint.Map(account);
         UpdatePreferencesEndpoint.Map(account);
+        UpdateProfileEndpoint.Map(account);
+        UploadAvatarEndpoint.Map(account);
+        RemoveAvatarEndpoint.Map(account);
+        GetAvatarEndpoint.Map(account);
         ListPasskeysEndpoint.Map(account);
         BeginAddPasskeyEndpoint.Map(account);
         AddPasskeyEndpoint.Map(account);

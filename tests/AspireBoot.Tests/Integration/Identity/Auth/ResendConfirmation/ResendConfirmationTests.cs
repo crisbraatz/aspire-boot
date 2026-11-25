@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AspireBoot.Tests.Integration.Identity.Auth.ResendConfirmation;
 
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class ResendConfirmationTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private static readonly TimeSpan MailTimeout = TimeSpan.FromSeconds(30);

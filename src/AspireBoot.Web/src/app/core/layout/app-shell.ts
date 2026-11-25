@@ -6,11 +6,12 @@ import { I18n } from '../i18n/i18n';
 import { SUPPORTED_CULTURES, isSupportedCulture } from '../i18n/supported-cultures';
 import { TranslatePipe } from '../i18n/translate.pipe';
 import { Session } from '../../identity/shared/session';
+import { Avatar } from '../../shared/ui/avatar/avatar';
 
 /** Accessible application frame: skip link, header, main landmark and focus management on navigation. */
 @Component({
   selector: 'ab-app-shell',
-  imports: [RouterOutlet, RouterLink, TranslatePipe],
+  imports: [RouterOutlet, RouterLink, TranslatePipe, Avatar],
   templateUrl: './app-shell.html',
 })
 export class AppShell {

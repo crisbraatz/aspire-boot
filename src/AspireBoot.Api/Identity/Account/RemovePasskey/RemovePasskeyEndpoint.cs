@@ -52,9 +52,9 @@ internal sealed partial class RemovePasskeyEndpoint
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         // Serializes removals for this account: the second request waits here and counts after the first commits.
-        _ = await db.Users
-            .FromSql($"SELECT * FROM \"AspNetUsers\" WHERE \"id\" = {user.Id} FOR UPDATE")
-            .AsNoTracking()
+        // Only the id is selected: SELECT * would drop the xmin system column that the users row version needs.
+        _ = await db.Database
+            .SqlQuery<Guid>($"SELECT \"id\" AS \"Value\" FROM \"AspNetUsers\" WHERE \"id\" = {user.Id} FOR UPDATE")
             .FirstOrDefaultAsync(cancellationToken);
 
         var passkey = await users.GetPasskeyAsync(user, credentialId);

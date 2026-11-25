@@ -25,13 +25,15 @@
           >
         </nav>
       }
-      @if (session.isLoaded() && session.isSignedIn()) {
+      @if (session.currentUser(); as user) {
         <nav [attr.aria-label]="'shell.nav.account' | t" class="flex items-center gap-1 text-sm">
           <a
             routerLink="/account"
-            class="inline-flex min-h-11 items-center rounded-md px-2 font-medium text-brand-700 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-brand-100"
-            >{{ 'shell.nav.account' | t }}</a
+            class="inline-flex min-h-11 items-center gap-2 rounded-md px-2 font-medium text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-brand-100"
           >
+            <ab-avatar [name]="user.displayName" [url]="user.avatarUrl" size="sm" />
+            <span class="underline">{{ user.displayName }}</span>
+          </a>
           <button
             type="button"
             data-action="shell-sign-out"

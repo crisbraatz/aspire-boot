@@ -13,8 +13,6 @@ using Testcontainers.PostgreSql;
 using Testcontainers.RabbitMq;
 using Testcontainers.Redis;
 
-[assembly: AssemblyFixture(typeof(AspireBoot.Tests.Integration.Infrastructure.InfrastructureFixture))]
-
 namespace AspireBoot.Tests.Integration.Infrastructure;
 
 /// <summary>
@@ -43,6 +41,21 @@ public sealed class InfrastructureFixture : IAsyncLifetime
             .ForPath("/api/v1/info")))
         .Build();
 
+    // Same image as deploy/compose.yaml. Test keys only; the S3 port is 9000.
+    private const int RustFsPort = 9000;
+
+    private const string RustFsAccessKey = "rustfs-test-access";
+    private const string RustFsSecretKey = "rustfs-test-secret-key";
+
+    private readonly IContainer _rustFs = new ContainerBuilder("rustfs/rustfs:1.0.6")
+        .WithPortBinding(RustFsPort, true)
+        .WithEnvironment("RUSTFS_ACCESS_KEY", RustFsAccessKey)
+        .WithEnvironment("RUSTFS_SECRET_KEY", RustFsSecretKey)
+        .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request => request
+            .ForPort(RustFsPort)
+            .ForPath("/health")))
+        .Build();
+
     private HttpClient? _mailpitHttp;
     private MailpitClient? _mailpitClient;
 
@@ -58,13 +71,26 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
     public int SmtpPort => _mailpit.GetMappedPublicPort(MailpitSmtpPort);
 
+    public string StorageServiceUrl => $"http://{_rustFs.Hostname}:{_rustFs.GetMappedPublicPort(RustFsPort)}";
+
+    public string StorageAccessKey => RustFsAccessKey;
+
+    public string StorageSecretKey => RustFsSecretKey;
+
+    public string StorageBucket => "aspireboot-test";
+
     /// <summary>Mailpit HTTP API client for reading the mail sent during tests.</summary>
     public MailpitClient Mailpit => _mailpitClient
         ?? throw new InvalidOperationException("The fixture has not been initialized.");
 
     public async ValueTask InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _rabbitMq.StartAsync(), _redis.StartAsync(), _mailpit.StartAsync());
+        await Task.WhenAll(
+            _postgres.StartAsync(),
+            _rabbitMq.StartAsync(),
+            _redis.StartAsync(),
+            _mailpit.StartAsync(),
+            _rustFs.StartAsync());
 
         _mailpitHttp = new HttpClient
         {
@@ -104,6 +130,16 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         await _rabbitMq.DisposeAsync();
         await _redis.DisposeAsync();
         await _mailpit.DisposeAsync();
+        await _rustFs.DisposeAsync();
         _mailpitHttp?.Dispose();
     }
+}
+/// <summary>
+/// Collection fixture instead of an assembly fixture: unit tests must not start containers.
+/// Every integration test class joins this collection and so shares one infrastructure and runs sequentially.
+/// </summary>
+[CollectionDefinition(Name)]
+public sealed class SharedInfrastructure : ICollectionFixture<InfrastructureFixture>
+{
+    public const string Name = "Infrastructure";
 }

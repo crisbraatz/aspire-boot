@@ -10,6 +10,7 @@ namespace AspireBoot.Tests.Integration.Infrastructure;
 /// <see cref="AspireBootApiFactory"/> keeps the production lifespan. The token provider reads the system clock,
 /// so a short lifespan plus a real wait is the reliable way to expire a token.
 /// </summary>
+[Collection(SharedInfrastructure.Name)]
 public sealed class AspireBootExpiringApiFactory(InfrastructureFixture infrastructure)
     : AspireBootApiFactory(infrastructure)
 {

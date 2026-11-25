@@ -7,6 +7,7 @@ using AspireBoot.Tests.Support.WebAuthn;
 namespace AspireBoot.Tests.Integration.Identity.Account.UpdatePreferences;
 
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class UpdatePreferencesTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private static readonly TimeSpan MailTimeout = TimeSpan.FromSeconds(30);

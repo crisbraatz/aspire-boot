@@ -54,6 +54,13 @@ jobs:
       - run: npm run test:ci
       - run: npm run build
 
+  images:
+    runs-on: ubuntu-latest # x64
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Build images, check libSkiaSharp native deps, run image tests
+        run: ./scripts/verify-images.sh
+
   security:
     runs-on: ubuntu-latest
     steps:

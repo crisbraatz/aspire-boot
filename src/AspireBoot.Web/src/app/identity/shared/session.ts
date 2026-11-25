@@ -48,6 +48,14 @@ export class Session {
       .catch(() => undefined);
   }
 
+  /**
+   * Merges fields into the signed-in user so the header updates at once, after a profile or avatar change.
+   * It does not call the server and does nothing while anonymous.
+   */
+  patchUser(partial: Partial<CurrentUser>): void {
+    this.user.update((user) => user && { ...user, ...partial });
+  }
+
   /** Posts the passkey assertion and then reloads the user, so the session state matches the cookie. */
   async signIn(credential: string, keepSignedIn: boolean): Promise<CurrentUser | null> {
     await this.api.signIn(credential, keepSignedIn);

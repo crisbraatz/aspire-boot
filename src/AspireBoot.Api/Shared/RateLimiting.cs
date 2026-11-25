@@ -20,11 +20,12 @@ internal static class RateLimitPolicies
     public const string EmailLink = "email-link";
     public const string PasskeyCeremony = "passkey-ceremony";
     public const string Authenticated = "authenticated";
+    public const string AvatarUpload = "avatar-upload";
 
     /// <summary>Default for anonymous read-only endpoints (platform info) that have no stricter policy.</summary>
     public const string Public = "public";
 
-    public static IReadOnlyList<string> All { get; } = [Signup, EmailLink, PasskeyCeremony, Authenticated, Public];
+    public static IReadOnlyList<string> All { get; } = [Signup, EmailLink, PasskeyCeremony, Authenticated, AvatarUpload, Public];
 }
 
 /// <summary>Fixed-window rate limiting partitioned by user (authenticated) or client IP (anonymous).</summary>
@@ -39,6 +40,7 @@ internal static class RateLimitingExtensions
             [RateLimitPolicies.EmailLink] = (5, 600),
             [RateLimitPolicies.PasskeyCeremony] = (20, 60),
             [RateLimitPolicies.Authenticated] = (60, 60),
+            [RateLimitPolicies.AvatarUpload] = (10, 600),
             [RateLimitPolicies.Public] = (120, 60),
         };
 

@@ -44,10 +44,20 @@ fetched: 2026-11-25
 
 ## RustFS (S3-compatible storage)
 - Image pinned (`rustfs/rustfs:1.0.6`), runs as UID 10001 (volumes must be writable by it; Podman uses `:Z,U`). Port 9000 = S3, 9001 = console (console never public in prod).
-- `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` from secrets. **Never** keep the default `rustfsadmin`.
-- App uses `AWSSDK.S3` with `ServiceURL` = RustFS endpoint and `ForcePathStyle = true`. Bucket is private. Downloads go through short-lived presigned URLs or an API proxy endpoint.
-- Uploads: allow-list content types, verify magic bytes, enforce a size limit, use server-generated keys (`avatars/{userId}/{guid}.webp`), and never accept client file names as paths.
-- Bucket provisioning is an explicit setup step (dev: on start; prod: deploy script).
+- `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` come from `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY`. **Never** keep the default `rustfsadmin`.
+- Health: `curl -fsS http://127.0.0.1:9000/health` (the image ships curl; bash and wget are absent). migrator, api and worker wait for `rustfs: service_healthy`.
+- App client: `AWSSDK.S3` (`AmazonS3Client`) with `ServiceURL` from `Storage:ServiceUrl` (`http://rustfs:9000` in compose) and `ForcePathStyle = true`. Settings are `Storage:ServiceUrl`, `Storage:AccessKey`, `Storage:SecretKey` and `Storage:Bucket` (`StorageOptions`, validated on start).
+- **The bucket is private.** The code sets no bucket policy and no ACL, and there is no presigned URL. Avatars are streamed by `GET /api/identity/account/avatar/{version}`, so RustFS never needs a public route.
+- Object keys are server-generated: `avatars/{userId:N}/{objectId:N}.webp`, always written with `ContentType image/webp`. Client file names are never used as paths. Uploads are checked and re-encoded before they reach storage (see `docs/architecture.md`, "Avatars and private object storage").
+- **Bucket provisioning** is a Wolverine system part, not a bare DI registration. `StorageBucketResource` (`IStatefulResource`: HeadBucket, then PutBucket, so it is idempotent) is reported by `StorageSystemPart` (`ISystemPart`). `resources setup` and `AddResourceSetupOnStartup()` only enumerate resources from system parts, so a bare `IStatefulResource` in DI is never provisioned.
+  - Compose: the one-shot `migrator` runs `resources setup` before the API and the Worker start. Both hosts also call `AddResourceSetupOnStartup()` in every environment, so the bucket exists after a start in dev too.
+  - Tests: `InfrastructureFixture` starts `rustfs/rustfs:1.0.6` (Testcontainers, port 9000, its own access keys), and the API and Worker factories receive the `Storage__*` settings.
+- Avatar object writes and deletes are owned by the Worker (`identity-avatars` queue). Deleting a missing key is a success, so redelivery is safe.
+
+## Image processing: SkiaSharp (native assets)
+- Package pair (pinned in `Directory.Packages.props`, MIT): `SkiaSharp` and `SkiaSharp.NativeAssets.Linux.NoDependencies`, both 4.157.0 (ADR 0004).
+- The NoDependencies native build excludes fontconfig and needs only glibc (libc, libm, libdl, libpthread). `mcr.microsoft.com/dotnet/aspnet:10.0` (Debian) already provides them, so the Dockerfiles have **no** apt step for SkiaSharp.
+- Runtime limits in code: 8000 px per side, 24 MP, and a process-wide decode limiter (`Avatars:MaxConcurrentProcessing`). Adding a native dependency here needs a new ADR.
 
 ## Email: MailKit + Mailpit
 - `IEmailSender` adapter in `Core/Infrastructure/Email` built on MailKit `SmtpClient`: `ConnectAsync(host, port, SecureSocketOptions.StartTls)` (or `SslOnConnect` on 465), then `AuthenticateAsync` and `SendAsync`. One client per send, or a pooled client with care (not thread-safe). Never return `true` from certificate validation.
@@ -56,7 +66,7 @@ fetched: 2026-11-25
 - Tests read messages via the Mailpit REST API (`/api/v1/...`).
 
 ## Compose (deploy/compose.yaml) and containers
-- Services: caddy, api, worker, migrator (one-shot, `restart: "no"`), postgres, rabbitmq, redis, rustfs. Private `backend` network. Only Caddy publishes 80/443 (+443/udp).
+- Services: caddy, api, worker, migrator (one-shot, `restart: "no"`), postgres, rabbitmq, redis, rustfs. Private `backend` network. The migrator, api and worker all depend on `rustfs: service_healthy`, so the bucket is reachable before `resources setup` runs. Only Caddy publishes 80/443 (+443/udp).
 - Every service has a pinned image, a `healthcheck`, `depends_on` with `condition: service_healthy`, `restart: unless-stopped`, `read_only: true` where possible, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, and a non-root `user`.
 - Secrets via `.env` (never committed; `.env.example` documents every key) or compose secrets.
 - Dockerfiles: multi-stage, `mcr.microsoft.com/dotnet/aspnet:10.0` (or chiseled) runtime, `USER app`, Wolverine `codegen write` in the build stage, and no SDK in the runtime image.

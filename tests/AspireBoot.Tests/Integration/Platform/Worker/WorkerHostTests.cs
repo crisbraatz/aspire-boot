@@ -5,6 +5,7 @@ using AspireBoot.Tests.Integration.Infrastructure;
 namespace AspireBoot.Tests.Integration.Platform.Worker;
 
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class WorkerHostTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private readonly AspireBootWorkerFactory _factory = new(infrastructure);

@@ -11,6 +11,7 @@ namespace AspireBoot.Tests.Integration.Identity.Notifications;
 
 /// <summary>Publishes each identity notification from the Api outbox and checks that the Worker sends the localized email.</summary>
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class NotificationEmailTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private static readonly TimeSpan MailTimeout = TimeSpan.FromSeconds(30);

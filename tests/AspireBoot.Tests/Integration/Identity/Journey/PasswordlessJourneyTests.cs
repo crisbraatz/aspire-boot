@@ -20,6 +20,7 @@ namespace AspireBoot.Tests.Integration.Identity.Journey;
 /// removal rules, recovery in es-ES and the end of the old session.
 /// </summary>
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class PasswordlessJourneyTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private static readonly TimeSpan MailTimeout = TimeSpan.FromSeconds(30);

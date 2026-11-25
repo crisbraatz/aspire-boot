@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AspireBoot.Tests.Integration.Infrastructure;
 
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class MailpitSmokeTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private readonly AspireBootApiFactory _factory = new(infrastructure);

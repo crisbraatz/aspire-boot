@@ -117,4 +117,51 @@ describe('IdentityApi', () => {
     request.flush([]);
     await done;
   });
+
+  it('updates the display name with PUT profile', async () => {
+    const done = api.updateProfile('Ana Maria');
+
+    const request = httpTesting.expectOne('/api/identity/account/profile');
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toEqual({ displayName: 'Ana Maria' });
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await done;
+  });
+
+  it('uploads the avatar as multipart form data under the file field', async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], 'me.png', { type: 'image/png' });
+    const done = api.uploadAvatar(file);
+
+    const request = httpTesting.expectOne('/api/identity/account/avatar');
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toBeInstanceOf(FormData);
+    expect((request.request.body as FormData).get('file')).toBe(file);
+    request.flush({ avatarUrl: '/api/identity/account/avatar/2' });
+    expect(await done).toEqual({ avatarUrl: '/api/identity/account/avatar/2' });
+  });
+
+  it('removes the avatar with DELETE', async () => {
+    const done = api.removeAvatar();
+
+    const request = httpTesting.expectOne('/api/identity/account/avatar');
+    expect(request.request.method).toBe('DELETE');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await done;
+  });
+
+  it('sends the XSRF header on profile and avatar writes', async () => {
+    document.cookie = `${XSRF_COOKIE}=token-123; path=/`;
+    const file = new File([new Uint8Array([1])], 'me.webp', { type: 'image/webp' });
+    const calls = [api.updateProfile('Ana'), api.uploadAvatar(file), api.removeAvatar()];
+
+    const requests = httpTesting.match((request) =>
+      request.url.startsWith('/api/identity/account/'),
+    );
+    expect(requests).toHaveLength(calls.length);
+    for (const request of requests) {
+      expect(request.request.headers.get('X-XSRF-TOKEN'), request.request.url).toBe('token-123');
+      request.flush(request.request.body instanceof FormData ? { avatarUrl: null } : null);
+    }
+    await Promise.all(calls);
+  });
 });

@@ -6,6 +6,7 @@ using AspireBoot.Tests.Integration.Infrastructure;
 namespace AspireBoot.Tests.Integration.Platform.GetAppInfo;
 
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class GetAppInfoTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private readonly AspireBootApiFactory _factory = new(infrastructure);

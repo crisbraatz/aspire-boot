@@ -14,6 +14,13 @@ namespace AspireBoot.Tests.Unit.Api.Shared;
 public sealed class RateLimitingTests
 {
     [Fact]
+    public void AvatarUploadPolicy_HasStableNameAndIsRegistered()
+    {
+        Assert.Equal("avatar-upload", RateLimitPolicies.AvatarUpload);
+        Assert.Contains(RateLimitPolicies.AvatarUpload, RateLimitPolicies.All);
+    }
+
+    [Fact]
     public void GetPartitionKey_WhenAuthenticated_UsesUserId()
     {
         var userId = Guid.CreateVersion7().ToString();

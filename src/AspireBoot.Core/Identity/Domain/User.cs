@@ -22,6 +22,14 @@ public sealed class User : IdentityUser<Guid>
 
     public DateTimeOffset CreatedAt { get; private set; }
 
+    private string? avatarKey;
+
+    /// <summary>The current avatar object, or null when the user has none.</summary>
+    public AvatarReference? Avatar => avatarKey is null ? null : AvatarReference.Restore(avatarKey, AvatarVersion);
+
+    /// <summary>Grows on every upload so avatar URLs never repeat, even after a removal. Never reused.</summary>
+    public int AvatarVersion { get; private set; }
+
     public static User Create(string email, DisplayName displayName, UiCulture culture, TimeProvider clock)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
@@ -50,6 +58,23 @@ public sealed class User : IdentityUser<Guid>
     {
         ArgumentNullException.ThrowIfNull(culture);
         PreferredCulture = culture;
+    }
+
+    /// <summary>Replaces the avatar with a newly stored object and returns the superseded reference, if any.</summary>
+    public AvatarReference? ChangeAvatar(Guid objectId)
+    {
+        var superseded = Avatar;
+        AvatarVersion++;
+        avatarKey = AvatarReference.For(Id, objectId, AvatarVersion).Key;
+        return superseded;
+    }
+
+    /// <summary>Removes the avatar. Returns the superseded reference, or null when there was none (idempotent).</summary>
+    public AvatarReference? RemoveAvatar()
+    {
+        var superseded = Avatar;
+        avatarKey = null;
+        return superseded;
     }
 
     /// <summary>Passkeys are the only credential, so the last one cannot be removed or the account would be locked out.</summary>

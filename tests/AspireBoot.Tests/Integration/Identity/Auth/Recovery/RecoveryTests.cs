@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AspireBoot.Tests.Integration.Identity.Auth.Recovery;
 
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed class RecoveryTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private static readonly TimeSpan MailTimeout = TimeSpan.FromSeconds(30);

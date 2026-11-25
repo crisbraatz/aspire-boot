@@ -6,6 +6,7 @@ using AspireBoot.Api.Shared;
 using AspireBoot.Tests.Integration.Infrastructure;
 using AspireBoot.Tests.Support.WebAuthn;
 
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
@@ -18,6 +19,7 @@ namespace AspireBoot.Tests.Integration.Platform.RateLimiting;
 /// unsafe /api endpoint rejects a request without the antiforgery header. A dedicated factory checks the 429 response.
 /// </summary>
 [Trait("Category", "Integration")]
+[Collection(SharedInfrastructure.Name)]
 public sealed partial class RateLimitCoverageTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     private static readonly Uri SignUpUri = new("/api/identity/auth/signup", UriKind.Relative);
@@ -58,10 +60,11 @@ public sealed partial class RateLimitCoverageTests(InfrastructureFixture infrast
             foreach (var method in methods.Where(m => UnsafeMethods.Contains(m, StringComparer.Ordinal)))
             {
                 var uri = new Uri(RouteParameter().Replace(endpoint.RoutePattern.RawText!, "placeholder"), UriKind.Relative);
-                using var request = new HttpRequestMessage(new HttpMethod(method), uri)
-                {
-                    Content = new StringContent("{}", Encoding.UTF8, "application/json"),
-                };
+                // Endpoints that declare multipart input only match multipart requests, so send the shape they accept.
+                using HttpContent content = endpoint.Metadata.GetMetadata<IAcceptsMetadata>()?.ContentTypes.Contains("multipart/form-data") == true
+                    ? new MultipartFormDataContent { { new StringContent("x"), "other" } }
+                    : new StringContent("{}", Encoding.UTF8, "application/json");
+                using var request = new HttpRequestMessage(new HttpMethod(method), uri) { Content = content };
 
                 using var response = await client.Http.SendAsync(request, ct);
                 var body = await response.Content.ReadAsStringAsync(ct);

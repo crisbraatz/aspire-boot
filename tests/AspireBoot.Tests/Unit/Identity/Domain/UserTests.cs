@@ -87,4 +87,87 @@ public sealed class UserTests
 
         Assert.Equal(newName, user.DisplayName);
     }
+
+    [Fact]
+    public void ChangeAvatar_FirstUpload_SetsAvatarAndVersionOne()
+    {
+        var user = NewUser();
+        var objectId = Guid.NewGuid();
+
+        var superseded = user.ChangeAvatar(objectId);
+
+        Assert.Null(superseded);
+        Assert.Equal(1, user.AvatarVersion);
+        Assert.Equal(AvatarReference.For(user.Id, objectId, 1), user.Avatar);
+    }
+
+    [Fact]
+    public void ChangeAvatar_Replace_ReturnsSupersededReferenceAndIncrementsVersion()
+    {
+        var user = NewUser();
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        user.ChangeAvatar(first);
+        var previous = user.Avatar;
+
+        var superseded = user.ChangeAvatar(second);
+
+        Assert.Equal(previous, superseded);
+        Assert.Equal(2, user.AvatarVersion);
+        Assert.Equal(AvatarReference.For(user.Id, second, 2), user.Avatar);
+    }
+
+    [Fact]
+    public void RemoveAvatar_WithAvatar_ReturnsReferenceClearsAvatarAndKeepsVersion()
+    {
+        var user = NewUser();
+        user.ChangeAvatar(Guid.NewGuid());
+        var current = user.Avatar;
+
+        var superseded = user.RemoveAvatar();
+
+        Assert.Equal(current, superseded);
+        Assert.Null(user.Avatar);
+        Assert.Equal(1, user.AvatarVersion);
+    }
+
+    [Fact]
+    public void RemoveAvatar_WithoutAvatar_ReturnsNullAndChangesNothing()
+    {
+        var user = NewUser();
+
+        var superseded = user.RemoveAvatar();
+
+        Assert.Null(superseded);
+        Assert.Null(user.Avatar);
+        Assert.Equal(0, user.AvatarVersion);
+    }
+
+    [Fact]
+    public void RemoveAvatar_Twice_IsIdempotent()
+    {
+        var user = NewUser();
+        user.ChangeAvatar(Guid.NewGuid());
+        user.RemoveAvatar();
+
+        var superseded = user.RemoveAvatar();
+
+        Assert.Null(superseded);
+        Assert.Equal(1, user.AvatarVersion);
+    }
+
+    [Fact]
+    public void VersionNeverReused_AcrossRemoveAndUpload()
+    {
+        var user = NewUser();
+        user.ChangeAvatar(Guid.NewGuid());
+        user.RemoveAvatar();
+
+        user.ChangeAvatar(Guid.NewGuid());
+
+        Assert.Equal(2, user.AvatarVersion);
+    }
+
+    private static User NewUser() =>
+        User.Create("ada@example.com", DisplayName.Create("Ada").Value, UiCulture.Default, new FakeTimeProvider(Now));
 }

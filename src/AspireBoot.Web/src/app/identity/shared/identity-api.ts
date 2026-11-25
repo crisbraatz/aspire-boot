@@ -11,6 +11,12 @@ export interface CurrentUser {
   displayName: string;
   email: string;
   culture: Culture;
+  /** Versioned avatar URL, or null when the user has no avatar. */
+  avatarUrl: string | null;
+}
+
+export interface AvatarUploadResult {
+  avatarUrl: string;
 }
 
 export interface PasskeyInfo {
@@ -83,6 +89,21 @@ export class IdentityApi {
 
   me(): Promise<CurrentUser> {
     return this.send<CurrentUser>('GET', `${BASE}/account/me`);
+  }
+
+  updateProfile(displayName: string): Promise<void> {
+    return this.send<void>('PUT', `${BASE}/account/profile`, { displayName });
+  }
+
+  /** Uploads the avatar as multipart form data; the server answers with the new avatar URL. */
+  uploadAvatar(file: File): Promise<AvatarUploadResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return this.send<AvatarUploadResult>('PUT', `${BASE}/account/avatar`, body);
+  }
+
+  removeAvatar(): Promise<void> {
+    return this.send<void>('DELETE', `${BASE}/account/avatar`);
   }
 
   updatePreferences(culture: Culture): Promise<void> {

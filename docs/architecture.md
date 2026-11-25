@@ -16,7 +16,8 @@ Versions verified on 2026-11-25 against NuGet, npm, the .NET release index, node
 | Messaging | Wolverine (EF Core + PostgreSQL outbox, RabbitMQ transport) | 6.65.1 | Transactional outbox, durable inbox, handlers |
 | Broker | RabbitMQ | 4.x management-alpine (*pin at scaffold*) | Reliable message transport API → Worker |
 | Cache | Redis (StackExchange.Redis) | 8.x alpine (*pin at scaffold*) | Cache, session tickets, rate limits |
-| Object storage | RustFS (S3-compatible, AWS SDK S3) | 1.0.6 | Self-hosted file storage (avatars) |
+| Object storage | RustFS (S3-compatible, AWS SDK S3), private bucket | 1.0.6 | Self-hosted private file storage (avatars), provisioned by a Wolverine system part |
+| Image processing | SkiaSharp + SkiaSharp.NativeAssets.Linux.NoDependencies (MIT) | 4.157.0 | Decodes and re-encodes avatars server side; see ADR 0004 |
 | Email | MailKit | 5.0.0 | SMTP delivery |
 | Dev/test email | Mailpit (CommunityToolkit.Aspire.Hosting.Mailpit) | v1.34 / 17.0.0 | Captures all mail locally and in tests |
 | Reverse proxy | Caddy | 2.x alpine (*pin at scaffold*) | Automatic HTTPS locally and in production |
@@ -101,17 +102,44 @@ docs/
   - Use `{param}` placeholders for interpolation. Plurals use separate ids.
   - The culture is stored in `localStorage` for anonymous visitors and in `Users.PreferredCulture` for accounts. Server emails use the same culture.
   - `@angular/localize` is not used.
-- **Persistence naming:** database columns are snake_case, including in raw SQL (`UseSnakeCaseNamingConvention`). The identity schema is `IdentitySchemaVersions.Version3` (passkey table `AspNetUserPasskeys`), set in `AddCoreInfrastructure` so the API and the Worker share one model.
+- **Problem Details codes:** every error carries a camelCase `code` (also the `type` suffix), namespaced by the feature, for example `avatar.tooLarge` or `avatar.dimensionsTooLarge`. Clients branch on the code, never on the title.
+- **Persistence naming:** database columns are snake_case, including in raw SQL (`UseSnakeCaseNamingConvention`). Raw SQL that selects entity rows must include `xmin`, or use projections. The identity schema is `IdentitySchemaVersions.Version3` (passkey table `AspNetUserPasskeys`), set in `AddCoreInfrastructure` so the API and the Worker share one model.
 - **Transactions:** the outbox is the transaction boundary. Slices that change state and send messages call `SaveChangesAndFlushMessagesAsync`, which commits the transaction and flushes the outbox in one step. Locks that protect invariants (for example the last passkey) run inside the same transaction.
 - **Naming:** a slice folder is named with a verb and a noun (`ListUsers`). Files inside it carry the slice name (`ListUsersEndpoint`, `ListUsersRequest`, `ListUsersHandler`).
 - **API style:** REST-ish resource routes under `/api`, Minimal API endpoint groups, `TypedResults`, RFC 9457 Problem Details for every error, and pagination with explicit limits.
 - **Errors:** expected failures return result types/Problem Details. Exceptions are reserved for the truly exceptional.
 - **Configuration:** strongly typed options, validated on start. Secrets come only from user-secrets (dev) or environment variables (prod).
 - **Logging:** structured logs with source-generated `LoggerMessage`. No PII or secrets in logs. Every slice emits traces. Key business metrics use `System.Diagnostics.Metrics`. Identity metrics use the meter `AspireBoot.Identity` (`IdentityMetrics`) with low-cardinality tags only (outcome or policy name, never email, user id or passkey name).
-- **Rate limiting (ADR 0002):** every endpoint under `/api` declares one named policy from `RateLimitPolicies` (`signup`, `email-link`, `passkey-ceremony`, `authenticated`, `public`). Authenticated callers are partitioned by user, anonymous callers by client IP. Only the Caddy network is trusted for `X-Forwarded-For` (`ReverseProxy:KnownNetworks`, `ForwardLimit = 1`). A rejected request returns 429 Problem Details with `Retry-After`. `RateLimitCoverageTests` fails when an endpoint has no policy or an unsafe endpoint accepts a request without the antiforgery token.
+- **Rate limiting (ADR 0002):** every endpoint under `/api` declares one named policy from `RateLimitPolicies` (`signup`, `email-link`, `passkey-ceremony`, `authenticated`, `avatar-upload`, `public`). Authenticated callers are partitioned by user, anonymous callers by client IP. Only the Caddy network is trusted for `X-Forwarded-For` (`ReverseProxy:KnownNetworks`, `ForwardLimit = 1`). A rejected request returns 429 Problem Details with `Retry-After`. `RateLimitCoverageTests` fails when an endpoint has no policy or an unsafe endpoint accepts a request without the antiforgery token.
 - **Performance:** async everywhere, `AsNoTracking` for reads, projections instead of loading entities, indexes declared in EF configurations, and output caching or Redis caching where reads dominate.
 - **Frontend:** standalone components, signals, `OnPush`/zoneless, lazy-loaded routes per slice, Tailwind utilities, runtime i18n (ADR 0001), and WCAG 2.2 AA (semantic HTML, keyboard navigation, focus management, contrast). The API client sends `X-XSRF-TOKEN` read from the `XSRF-TOKEN` cookie. The cookie is issued by `GET /api/antiforgery/token`, and the token must be refreshed after sign-in and sign-out, because the server rotates it with the session.
 - **Formatting:** `dotnet format` + `.editorconfig` with analyzers as errors. ESLint + Prettier on the frontend.
+
+## Avatars and private object storage
+Implemented in feature 002. Files: `Core/Infrastructure/Images`, `Core/Infrastructure/Storage`, `Core/Identity/Domain/AvatarReference.cs`, `Api/Identity/Account/{UploadAvatar,RemoveAvatar,GetAvatar}`, `Worker/Identity/Avatars/{DeleteAvatarObject,CheckAvatarOrphan}`.
+
+- **Processing (`AvatarImageProcessor`, ADR 0004).** `Process(Stream)` returns `Result<byte[]>`:
+  1. Magic bytes pick the codec (JPEG `FF D8 FF`, PNG, WebP `RIFF....WEBP`). The file extension and Content-Type are ignored. Anything else fails with `avatar.unsupportedType` (415).
+  2. `SKCodec` reads the header without decoding pixels. A width or height above 8000 px, or more than 24 MP, fails with `avatar.dimensionsTooLarge` (400). A missing codec or a failed decode fails with `avatar.corrupt` (400).
+  3. JPEG and WebP decode at the smallest scale whose short side is still at least 256 px. PNG has no scaled decode, so it decodes at full size, which the header cap already bounds.
+  4. The EXIF orientation is applied, the image is center-cropped to a square, resampled to 256x256 (Mitchell cubic) and encoded as WebP quality 80. Re-encoding from pixels drops EXIF, XMP and GPS data.
+- **Concurrency limit.** `AvatarProcessingLimiter` is a process-wide `SemaphoreSlim`, sized by `Avatars:MaxConcurrentProcessing` (default 2). Peak decode memory is about 96 MB per slot (24 MP x 4 B, the worst PNG), so the default of 2 needs about 192 MB of headroom on the API host; see ADR 0004 before raising it. A request waits up to `Avatars:ProcessingWaitSeconds` (default 10 s) for a slot, then gets `503 avatar.busy`. Decoding runs off the request thread, and the slot is always released.
+- **Storage (`IAvatarStorage`, `S3AvatarStorage`).** Objects are written with `image/webp` to the bucket `Storage:Bucket` (default `aspireboot`), which is private: the code sets no bucket policy and no ACL. Keys are `avatars/{userId:N}/{objectId:N}.webp`, built only by `AvatarReference.KeyFor` (`For` uses it too). The Worker accepts a key only when `AvatarKeys.BelongsTo` finds exactly one GUID object of that user. The client never supplies a key or a file name. `DeleteAsync` is idempotent.
+- **Bucket provisioning.** `StorageBucketResource` (an `IStatefulResource`) runs HeadBucket and then PutBucket. It is exposed through `StorageSystemPart`, a Wolverine `ISystemPart`, because `AddResourceSetupOnStartup()` and `resources setup` only enumerate resources reported by system parts. A bare `IStatefulResource` in DI is never provisioned. The API and the Worker call `AddResourceSetupOnStartup()` in every environment. In deployment, the compose `migrator` runs `resources setup` before they start.
+- **Domain.** `User.Avatar` (an `AvatarReference`, nullable) and `User.AvatarVersion`, which only grows, so a version is never reused after a removal. `ChangeAvatar` and `RemoveAvatar` return the superseded reference. `RemoveAvatar` is idempotent. Persisted as `avatar_key` and `avatar_version`. The `users` table maps PostgreSQL `xmin` as a row version, so concurrent writes are detected.
+- **Upload: `PUT /api/identity/account/avatar`** (multipart field `file`, at most 5 MiB). The endpoint carries a `RequestSizeLimit` of 6 MiB, which overrides the 32 KB group limit. The rate policy is `avatar-upload` (10 requests per 10 minutes). The form is read manually, not bound as `IFormFile`, so the antiforgery filter runs before any binding. Antiforgery still applies, with the token from the form or the `X-XSRF-TOKEN` header. Steps:
+  1. Check the size and take a limiter slot, then process in memory.
+  2. Commit a delayed `AvatarObjectOrphanCheck` (`Avatars:OrphanCheckDelay`, default 1 h) in its own transaction, before the write. The Worker deletes that key unless it is the user's current avatar, which cleans up after a crash.
+  3. Put the object. A failure returns `503 avatar.storageUnavailable` and leaves the profile untouched.
+  4. Run the commit loop, at most 2 attempts. Each attempt opens a new DI scope, so it gets a fresh `AppDbContext`, outbox and transaction. The attempt calls `ChangeAvatar`, publishes `AvatarObjectSuperseded` for the old key, and calls `SaveChangesAndFlushMessagesAsync`. A `DbUpdateConcurrencyException` from the `xmin` check retries. If both attempts fail, the new object is deleted on a best-effort basis and the response is `503 avatar.busy`.
+  - Response `200 { avatarUrl }`, where `avatarUrl` is `/api/identity/account/avatar/{version}`.
+- **Remove: `DELETE /api/identity/account/avatar`.** Always `204` (idempotent). It publishes `AvatarObjectSuperseded` only when an avatar existed, and it records `aspireboot.identity.avatar.removals`.
+- **Serve: `GET /api/identity/account/avatar/{version}`.** The object key comes from the caller's own row, never from the URL, which only carries the version. A version that does not match the current one, or a missing avatar, returns `404`. The response is `image/webp` with `Cache-Control: private, max-age=31536000, immutable` and `ETag: "v{version}"`, and it answers `304` to a matching `If-None-Match`. The policy is `authenticated`. The endpoint streams the bytes instead of issuing a presigned URL, so RustFS stays on the private network and the session, authorization and audit stay in the API.
+- **Profile.** `GET /api/identity/account/me` returns `avatarUrl` (or `null`), built from the same row.
+- **Messages.** `AvatarObjectSuperseded(UserId, Key)` and `AvatarObjectOrphanCheck(UserId, Key)` (`Core/Messaging/Identity/AvatarMessages.cs`) go to the RabbitMQ queue `identity-avatars`. The Worker slices `Identity/Avatars/DeleteAvatarObject` and `Identity/Avatars/CheckAvatarOrphan` log only the user id and the object id.
+- **Metrics.** `aspireboot.identity.avatar.uploads` (tag `outcome`: `stored`, `rejected_type`, `rejected_size`, `rejected_dimensions`, `corrupt`, `storage_error` for a storage failure, and `conflict` when the profile changed on every retry) and `aspireboot.identity.avatar.removals`.
+- **Problem Details codes:** `avatar.unsupportedType` (415), `avatar.tooLarge` (413), `avatar.missing`, `avatar.corrupt`, `avatar.dimensionsTooLarge` (400), `avatar.busy` and `avatar.storageUnavailable` (503).
+- **Configuration:** `Avatars:MaxConcurrentProcessing`, `Avatars:ProcessingWaitSeconds`, `Avatars:OrphanCheckDelay` (see `deploy/.env.example`), and `Storage:ServiceUrl`, `Storage:AccessKey`, `Storage:SecretKey`, `Storage:Bucket`, which compose fills from `STORAGE_*`.
 
 ## Testing strategy
 - **Unit (`tests/AspireBoot.Tests/Unit`):** domain invariants and pure logic, with xUnit v3 and NSubstitute.
@@ -139,13 +167,15 @@ docs/
 - **Configuration keys** (documented in `deploy/.env.example`):
   - `Passkeys__ServerDomain`, `Passkeys__AllowedOrigins__0`: relying party and exact origins.
   - `App__PublicBaseUrl`: base of the links in emails (`/confirm`, `/recover/complete`).
+  - `Avatars__MaxConcurrentProcessing` (default 2, about 96 MB of peak memory per slot), `Avatars__ProcessingWaitSeconds` (default 10) and `Avatars__OrphanCheckDelay` (default 1 hour): avatar processing limits and the orphan check delay.
+  - `Storage__ServiceUrl`, `Storage__AccessKey`, `Storage__SecretKey`, `Storage__Bucket`: the private RustFS bucket for avatars.
   - `Identity__EmailCooldownSeconds` (default 60) and `Identity__SecurityStampValidationSeconds` (default 60).
   - `RateLimiting__<policy>__PermitLimit` and `RateLimiting__<policy>__WindowSeconds`, with the defaults in `RateLimitingExtensions`.
   - `ReverseProxy__KnownNetworks__0`: the proxy network whose forwarded headers are trusted.
 - Input validation in every slice. EF parameterized queries only. Credential JSON is capped in size and passkey names are 1 to 50 characters.
 - Security headers (CSP, HSTS and others) set by Caddy and the API.
 - Data Protection keys persisted in PostgreSQL and protected with a certificate in production.
-- Uploads: allow-listed content types, size limits and server-generated object keys.
+- Uploads: content is checked by magic bytes, re-encoded from pixels, and capped in size and dimensions; object keys are server-generated. See [Avatars and private object storage](#avatars-and-private-object-storage).
 - Dependency audit (osv-scanner, `dotnet list package --vulnerable`, `npm audit`), secret scanning (gitleaks), container scanning (trivy) and SAST (semgrep) in CI.
 
 ## Deployment
@@ -157,4 +187,4 @@ docs/
 - **Optional:** managed cloud (Azure/AWS) by swapping container resources for managed services through Aspire.
 
 ## Decision records
-Significant decisions live in [`adr/`](adr/README.md): the initial stack and architecture (ADR 0000), runtime i18n (ADR 0001), rate limiting (ADR 0002) and passwordless passkeys (ADR 0003).
+Significant decisions live in [`adr/`](adr/README.md): the initial stack and architecture (ADR 0000), runtime i18n (ADR 0001), rate limiting (ADR 0002), passwordless passkeys (ADR 0003) and avatar image processing with SkiaSharp (ADR 0004).
