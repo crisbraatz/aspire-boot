@@ -1,0 +1,28 @@
+{
+	local_certs
+	skip_install_trust
+	admin off
+}
+
+https://localhost:8443 {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	@internal path /health* /alive*
+	handle @internal {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy {$API_UPSTREAM}
+	}
+
+	handle {
+		reverse_proxy {$WEB_UPSTREAM}
+	}
+}

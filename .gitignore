@@ -1,0 +1,28 @@
+# .NET
+bin/
+obj/
+artifacts/
+TestResults/
+*.user
+.vs/
+.idea/
+*.DotSettings.user
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+coverage/
+
+# Environment and secrets
+.env*
+!.env.example
+*.pfx
+*.pem
+*.key
+
+# AI Workflow transient state
+.aiw/current/
+
+# OS
+.DS_Store

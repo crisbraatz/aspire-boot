@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "initialized": true,
+  "step": "done",
+  "userLanguage": "pt-BR",
+  "branchMode": "main",
+  "trunkBranch": "main",
+  "createdWith": "claude",
+  "lastAgent": "claude",
+  "businessSummary": "AspireBoot is an open-source (MIT) .NET Aspire template that lets technical and non-technical builders start secure web products focused on business, shipping ready-made infrastructure (database, messaging, cache, object storage, email, HTTPS, observability) and full Identity-based accounts, profiles, sessions, user management and RBAC, with UI in pt/en/es. It targets single-VPS deployment by default (managed cloud optional), exposes an API for the bundled web frontend and a future mobile app, and a core premise is strong AI skills/instructions so assistants keep code maintainable, well-organized, performant, secure and aligned with the architecture.",
+  "stack": [
+    ".NET 10 LTS (SDK 10.0.404)",
+    "Aspire 17.0.0",
+    "ASP.NET Core Identity 10.0",
+    "EF Core 10.0.15 + Npgsql 10.0.4",
+    "PostgreSQL 19",
+    "Wolverine 6.65.1",
+    "RabbitMQ 4.x",
+    "Redis 8.x",
+    "RustFS 1.0.6",
+    "MailKit 5.0.0",
+    "Mailpit v1.34",
+    "Caddy 2.x",
+    "Scalar.AspNetCore 3.2.0",
+    "OpenTelemetry 1.21.0",
+    "xUnit v3 4.0.3 + Testcontainers 4.17.0",
+    "Angular 22.3.0",
+    "TypeScript 6.0.3",
+    "Tailwind CSS 4.3.5",
+    "Node.js 26 LTS"
+  ],
+  "architecture": "DDD + Vertical Slices (backend and frontend); AppHost, ServiceDefaults, Api, Worker, Core, single Tests project (Unit/Integration), Angular Web",
+  "skills": {
+    "level2": [
+      {
+        "name": "angular",
+        "kind": "technology",
+        "path": ".aiw/skills/level2/angular/SKILL.md",
+        "sources": [
+          "https://angular.dev/ai/develop-with-ai",
+          "https://angular.dev/assets/context/best-practices.md",
+          "https://angular.dev/style-guide",
+          "https://angular.dev/best-practices/a11y",
+          "https://angular.dev/best-practices/security",
+          "https://angular.dev/guide/i18n",
+          "https://angular.dev/guide/testing",
+          "https://angular.dev/guide/zoneless",
+          "https://angular.dev/guide/signals",
+          "https://angular.dev/guide/signals/resource",
+          "https://angular.dev/guide/http/http-resource",
+          "https://angular.dev/guide/forms/signals/overview",
+          "model-knowledge"
+        ]
+      },
+      {
+        "name": "architecture-ddd-vertical-slices",
+        "kind": "architecture",
+        "path": ".aiw/skills/level2/architecture-ddd-vertical-slices/SKILL.md",
+        "sources": [
+          "https://martinfowler.com/bliki/DDD_Aggregate.html",
+          "https://martinfowler.com/bliki/BoundedContext.html",
+          "https://martinfowler.com/bliki/ValueObject.html",
+          "https://martinfowler.com/bliki/AnemicDomainModel.html",
+          "https://github.com/ddd-crew/aggregate-design-canvas",
+          "https://github.com/ddd-crew/bounded-context-canvas",
+          "https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/ddd-oriented-microservice",
+          "https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/implement-value-objects",
+          "https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/domain-events-design-implementation",
+          "https://www.jimmybogard.com/vertical-slice-architecture/",
+          "model-knowledge"
+        ]
+      },
+      {
+        "name": "aspire",
+        "kind": "technology",
+        "path": ".aiw/skills/level2/aspire/SKILL.md",
+        "sources": [
+          "https://aspire.dev/llms.txt",
+          "https://aspire.dev/get-started/csharp-service-defaults/",
+          "https://aspire.dev/integrations/databases/postgres/postgres-get-started/",
+          "https://aspire.dev/integrations/frameworks/javascript/",
+          "https://aspire.dev/integrations/messaging/rabbitmq/rabbitmq-host/",
+          "https://aspire.dev/fundamentals/persist-data-volumes/",
+          "https://aspire.dev/testing/overview/",
+          "https://aspire.dev/deployment/",
+          "https://aspire.dev/integrations/databases/efcore/migrations/",
+          "model-knowledge",
+          "`AddPostgres(\"postgres\").WithDataVolume().AddDatabase(\"aspireboot\")`",
+          "`AddRabbitMQ(\"rabbitmq\").WithManagementPlugin().WithDataVolume()`",
+          "`AddRedis(\"redis\").WithDataVolume()`",
+          "`AddContainer(\"rustfs\",",
+          "Mailpit",
+          "Caddy",
+          "Angular"
+        ]
+      },
+      {
+        "name": "aspnetcore-api-identity",
+        "kind": "technology",
+        "path": ".aiw/skills/level2/aspnetcore-api-identity/SKILL.md",
+        "sources": [
+          "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis/route-handlers",
+          "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis/min-api-filters",
+          "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling",
+          "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/overview",
+          "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/using-openapi-documents",
+          "https://learn.microsoft.com/en-us/aspnet/core/security/authentication/cookie",
+          "https://learn.microsoft.com/en-us/aspnet/core/security/authentication/accconfirm",
+          "https://learn.microsoft.com/en-us/aspnet/core/security/authorization/policies",
+          "https://learn.microsoft.com/en-us/aspnet/core/security/anti-request-forgery",
+          "https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit",
+          "https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/overview",
+          "https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/proxy-load-balancer",
+          "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html",
+          "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html",
+          "model-knowledge"
+        ]
+      },
+      {
+        "name": "efcore-postgresql",
+        "kind": "technology",
+        "path": ".aiw/skills/level2/efcore-postgresql/SKILL.md",
+        "sources": [
+          "https://learn.microsoft.com/en-us/ef/core/performance/efficient-querying",
+          "https://learn.microsoft.com/en-us/ef/core/performance/advanced-performance-topics",
+          "https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying",
+          "https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing",
+          "https://learn.microsoft.com/en-us/ef/core/dbcontext-configuration/",
+          "https://learn.microsoft.com/en-us/ef/core/modeling/indexes",
+          "https://learn.microsoft.com/en-us/ef/core/saving/concurrency",
+          "https://learn.microsoft.com/en-us/ef/core/modeling/owned-entities",
+          "https://learn.microsoft.com/en-us/ef/core/modeling/complex-types",
+          "https://learn.microsoft.com/en-us/ef/core/querying/single-split-queries",
+          "https://learn.microsoft.com/en-us/ef/core/testing/",
+          "https://www.npgsql.org/efcore/",
+          "https://aspire.dev/integrations/databases/efcore/postgres/postgresql-connect/",
+          "model-knowledge",
+          "`dotnet",
+          "`dotnet",
+          "`dotnet",
+          "`dotnet",
+          "`dotnet"
+        ]
+      },
+      {
+        "name": "infrastructure",
+        "kind": "technology",
+        "path": ".aiw/skills/level2/infrastructure/SKILL.md",
+        "sources": [
+          "https://caddyserver.com/docs/caddyfile/directives/reverse_proxy",
+          "https://caddyserver.com/docs/automatic-https",
+          "https://caddyserver.com/docs/caddyfile/directives/tls",
+          "https://caddyserver.com/docs/caddyfile/directives/header",
+          "https://caddyserver.com/docs/caddyfile/directives/file_server",
+          "https://caddyserver.com/docs/caddyfile/directives/try_files",
+          "https://caddyserver.com/docs/running",
+          "https://redis.io/docs/latest/operate/oss_and_stack/management/security/",
+          "https://redis.io/docs/latest/operate/oss_and_stack/management/security/acl/",
+          "https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/",
+          "https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid",
+          "https://github.com/rustfs/rustfs",
+          "https://docs.rustfs.com/en/installation",
+          "https://github.com/jstedfast/MailKit",
+          "https://mailpit.axllent.org/docs/",
+          "https://mailpit.axllent.org/docs/configuration/smtp/",
+          "https://mailpit.axllent.org/docs/integration/",
+          "https://docs.docker.com/reference/compose-file/services/",
+          "model-knowledge"
+        ]
+      },
+      {
+        "name": "opentelemetry",
+        "kind": "technology",
+        "path": ".aiw/skills/level2/opentelemetry/SKILL.md",
+        "sources": [
+          "https://opentelemetry.io/docs/languages/dotnet/",
+          "https://opentelemetry.io/docs/languages/dotnet/sampling/",
+          "https://github.com/open-telemetry/opentelemetry-dotnet/tree/main/docs/metrics",
+          "https://github.com/open-telemetry/opentelemetry-dotnet/tree/main/docs/logs",
+          "https://github.com/open-telemetry/opentelemetry-dotnet/tree/main/docs/trace",
+          "https://learn.microsoft.com/en-us/dotnet/core/diagnostics/distributed-tracing-instrumentation-walkthroughs",
+          "https://learn.microsoft.com/en-us/dotnet/core/extensions/logger-message-generator",
+          "https://learn.microsoft.com/en-us/dotnet/core/extensions/high-performance-logging",
+          "https://opentelemetry.io/docs/specs/semconv/general/naming/",
+          "https://opentelemetry.io/docs/specs/semconv/general/metrics/",
+          "model-knowledge"
+        ]
+      },
+      {
+        "name": "tailwind-accessibility",
+        "kind": "technology",
+        "path": ".aiw/skills/level2/tailwind-accessibility/SKILL.md",
+        "sources": [
+          "https://tailwindcss.com/docs/installation/framework-guides/angular",
+          "https://tailwindcss.com/docs/styling-with-utility-classes",
+          "https://tailwindcss.com/docs/responsive-design",
+          "https://tailwindcss.com/docs/dark-mode",
+          "https://tailwindcss.com/docs/theme",
+          "https://tailwindcss.com/docs/adding-custom-styles",
+          "https://www.w3.org/WAI/WCAG22/quickref/",
+          "https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/",
+          "model-knowledge"
+        ]
+      },
+      {
+        "name": "testing-dotnet",
+        "kind": "technology",
+        "path": ".aiw/skills/level2/testing-dotnet/SKILL.md",
+        "sources": [
+          "https://xunit.net/docs/shared-context",
+          "https://dotnet.testcontainers.org/",
+          "https://dotnet.testcontainers.org/api/best_practices/",
+          "https://dotnet.testcontainers.org/custom_configuration/",
+          "https://dotnet.testcontainers.org/api/resource_reaper/",
+          "https://dotnet.testcontainers.org/modules/postgres/",
+          "https://dotnet.testcontainers.org/test_frameworks/xunit_net/",
+          "https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests",
+          "https://github.com/jbogard/Respawn",
+          "model-knowledge"
+        ]
+      },
+      {
+        "name": "wolverine",
+        "kind": "technology",
+        "path": ".aiw/skills/level2/wolverine/SKILL.md",
+        "sources": [
+          "https://wolverinefx.net/llms.txt",
+          "https://wolverinefx.net/guide/durability/",
+          "https://wolverinefx.net/guide/durability/efcore/outbox-and-inbox",
+          "https://wolverinefx.net/guide/durability/efcore/transactional-middleware.md",
+          "https://wolverinefx.net/guide/durability/postgresql",
+          "https://wolverinefx.net/guide/handlers/",
+          "https://wolverinefx.net/guide/handlers/error-handling",
+          "https://wolverinefx.net/guide/messaging/transports/rabbitmq",
+          "https://wolverinefx.net/guide/messaging/recurring",
+          "https://wolverinefx.net/guide/codegen.md",
+          "https://wolverinefx.net/guide/testing.md",
+          "https://wolverinefx.net/guide/logging.md",
+          "https://wolverinefx.net/guide/health-checks.md",
+          "model-knowledge"
+        ]
+      }
+    ],
+    "level3": [
+      {
+        "name": "domain",
+        "path": ".aiw/skills/level3/domain/SKILL.md"
+      }
+    ]
+  },
+  "currentFeature": null,
+  "checkpoint": null,
+  "featureCounter": 0
+}

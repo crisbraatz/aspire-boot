@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AspireBoot.Api/AspireBoot.Api.csproj" />
+    <Project Path="src/AspireBoot.AppHost/AspireBoot.AppHost.csproj" />
+    <Project Path="src/AspireBoot.Core/AspireBoot.Core.csproj" />
+    <Project Path="src/AspireBoot.ServiceDefaults/AspireBoot.ServiceDefaults.csproj" />
+    <Project Path="src/AspireBoot.Worker/AspireBoot.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AspireBoot.Tests/AspireBoot.Tests.csproj" />
+  </Folder>
+</Solution>

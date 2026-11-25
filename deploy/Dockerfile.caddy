@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+# Builds the Angular app and bakes it into the Caddy image that serves it.
+FROM node:26-alpine AS web
+WORKDIR /web
+COPY src/AspireBoot.Web/package.json src/AspireBoot.Web/package-lock.json ./
+RUN npm ci
+COPY src/AspireBoot.Web/ ./
+RUN npm run build
+
+FROM caddy:2.11.9-alpine
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --from=web /web/dist/AspireBoot.Web/browser /srv
+# Run as non-root. The caddy binary keeps cap_net_bind_service, so it can still bind 80/443.
+RUN addgroup -S -g 10001 caddy && adduser -S -u 10001 -G caddy caddy \
+    && mkdir -p /data/caddy /config/caddy && chown -R caddy:caddy /data /config
+USER caddy

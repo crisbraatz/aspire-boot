@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.angular/
+**/coverage/
+**/TestResults/
+.git/
+.aiw/
+docs/
+tests/
+**/.env*
+!deploy/.env.example
