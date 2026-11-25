@@ -1,0 +1,60 @@
+<section aria-labelledby="recover-heading" class="mx-auto w-full max-w-md space-y-6">
+  <div class="space-y-2">
+    <h1 id="recover-heading" class="text-3xl font-bold tracking-tight">
+      {{ 'auth.recover.heading' | t }}
+    </h1>
+    <p class="text-slate-600 dark:text-slate-300">{{ 'auth.recover.lead' | t }}</p>
+  </div>
+
+  @if (sent()) {
+    <p
+      role="status"
+      class="rounded-md border border-brand-100 bg-brand-50 p-4 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+    >
+      {{ 'auth.recover.sent' | t }}
+    </p>
+  }
+
+  @if (notice(); as current) {
+    <p
+      role="alert"
+      class="rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100"
+    >
+      {{ text(current) }}
+    </p>
+  }
+
+  <form novalidate class="space-y-5" (submit)="onSubmit($event)">
+    @let emailError = errorFor(recoverForm.email());
+
+    <div class="space-y-1">
+      <label for="recover-email" class="block text-sm font-medium">
+        {{ 'auth.recover.email.label' | t }}
+      </label>
+      <input
+        id="recover-email"
+        type="email"
+        autocomplete="email"
+        spellcheck="false"
+        [formField]="recoverForm.email"
+        class="block min-h-11 w-full rounded-md border border-slate-600 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-100"
+        [attr.aria-invalid]="emailError ? 'true' : null"
+        [attr.aria-describedby]="emailError ? 'recover-email-error' : null"
+      />
+      @if (emailError) {
+        <p id="recover-email-error" class="text-sm text-red-900 dark:text-red-200">
+          {{ emailError }}
+        </p>
+      }
+    </div>
+
+    <button
+      type="submit"
+      class="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+      [disabled]="busy()"
+      [attr.aria-busy]="busy()"
+    >
+      {{ 'auth.recover.submit' | t }}
+    </button>
+  </form>
+</section>

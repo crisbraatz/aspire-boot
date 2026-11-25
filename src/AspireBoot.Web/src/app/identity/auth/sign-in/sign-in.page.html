@@ -1,0 +1,76 @@
+<section aria-labelledby="signin-heading" class="mx-auto w-full max-w-md space-y-6">
+  <div class="space-y-2">
+    <h1 id="signin-heading" class="text-3xl font-bold tracking-tight">
+      {{ 'auth.signIn.heading' | t }}
+    </h1>
+    <p class="text-slate-600 dark:text-slate-300">{{ 'auth.signIn.lead' | t }}</p>
+  </div>
+
+  @if (!supported) {
+    <p
+      role="alert"
+      class="rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100"
+    >
+      {{ 'auth.unsupported' | t }}
+    </p>
+  } @else {
+    <form novalidate class="space-y-5" (submit)="signInWithPasskey($event)">
+      <div class="space-y-1">
+        <label for="signin-email" class="block text-sm font-medium">
+          {{ 'auth.signIn.email.label' | t }}
+        </label>
+        <input
+          id="signin-email"
+          name="username"
+          type="email"
+          autocomplete="username webauthn"
+          spellcheck="false"
+          aria-describedby="signin-email-hint"
+          class="block min-h-11 w-full rounded-md border border-slate-600 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-100"
+        />
+        <p id="signin-email-hint" class="text-sm text-slate-600 dark:text-slate-300">
+          {{ 'auth.signIn.email.hint' | t }}
+        </p>
+      </div>
+
+      <div class="flex min-h-11 items-center gap-3">
+        <input
+          id="keep-signed-in"
+          type="checkbox"
+          class="size-5 rounded border-slate-600 accent-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          [checked]="keepSignedIn()"
+          (change)="onKeepSignedInChange($event)"
+        />
+        <label for="keep-signed-in" class="text-sm">{{ 'auth.signIn.keepSignedIn' | t }}</label>
+      </div>
+
+      <button
+        type="submit"
+        class="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+        [disabled]="busy()"
+        [attr.aria-busy]="busy()"
+      >
+        {{ (busy() ? 'auth.waitingDevice' : 'auth.signIn.submit') | t }}
+      </button>
+    </form>
+  }
+
+  <div aria-live="polite">
+    @if (notice(); as current) {
+      <p
+        class="rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100"
+      >
+        {{ text(current) }}
+      </p>
+    }
+  </div>
+
+  <p class="text-sm text-slate-600 dark:text-slate-300">
+    {{ 'auth.signIn.newHere' | t }}
+    <a
+      routerLink="/signup"
+      class="inline-flex min-h-11 items-center font-medium text-brand-700 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-brand-100"
+      >{{ 'auth.signIn.createAccount' | t }}</a
+    >
+  </p>
+</section>

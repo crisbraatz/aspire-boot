@@ -1,5 +1,6 @@
 using AspireBoot.Api.Shared;
 using AspireBoot.Core;
+using AspireBoot.Core.Messaging.Identity;
 using AspireBoot.Core.Persistence;
 
 using JasperFx;
@@ -44,12 +45,17 @@ builder.Host.UseWolverine(options =>
     options.Policies.UseDurableOutboxOnAllSendingEndpoints();
     options.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
     options.UseRabbitMqUsingNamedConnection("rabbitmq").AutoProvision();
+    options.PublishMessage<ConfirmationEmailRequested>().ToRabbitQueue("identity-notifications");
+    options.PublishMessage<RecoveryEmailRequested>().ToRabbitQueue("identity-notifications");
+    options.PublishMessage<PasskeyAddedNotification>().ToRabbitQueue("identity-notifications");
+    options.PublishMessage<PasskeyRemovedNotification>().ToRabbitQueue("identity-notifications");
 
     options.Services.CritterStackDefaults(defaults =>
     {
         defaults.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
         defaults.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
-        defaults.Production.GeneratedCodeMode = TypeLoadMode.Static;
+        // Tests host the apps with the "Testing" environment and need runtime handler discovery; production stays pre-generated.
+        defaults.Production.GeneratedCodeMode = builder.Environment.IsEnvironment("Testing") ? TypeLoadMode.Dynamic : TypeLoadMode.Static;
         defaults.Production.ResourceAutoCreate = AutoCreate.None;
     });
 });
@@ -75,6 +81,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseEndpointRequestSizeLimits();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

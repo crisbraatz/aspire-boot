@@ -1,0 +1,28 @@
+<section aria-labelledby="account-heading" class="mx-auto w-full max-w-md space-y-6">
+  <h1 id="account-heading" class="text-3xl font-bold tracking-tight">
+    {{ 'account.home.heading' | t }}
+  </h1>
+
+  @if (session.currentUser(); as user) {
+    <p class="text-lg">{{ 'account.home.signedInAs' | t: { name: user.displayName } }}</p>
+  }
+
+  <ul class="space-y-3">
+    <li>
+      <a
+        routerLink="/account/passkeys"
+        class="inline-flex min-h-11 items-center font-medium text-brand-700 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-brand-100"
+        >{{ 'account.home.managePasskeys' | t }}</a
+      >
+    </li>
+  </ul>
+
+  <button
+    type="button"
+    data-action="sign-out"
+    class="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-slate-600 px-4 py-2 font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+    (click)="signOut()"
+  >
+    {{ 'account.home.signOut' | t }}
+  </button>
+</section>

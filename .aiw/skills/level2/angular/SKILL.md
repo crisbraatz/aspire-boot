@@ -43,11 +43,19 @@ fetched: 2026-11-25
 - HTTP: `HttpClient` with `withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' })` and `withCredentials` for same-origin `/api`. Use `httpResource()` for reads (GET), and `HttpClient` for mutations. Guard `value()` with `hasValue()`.
 - API clients per context in `<context>/shared/*-api.ts` with typed request/response models matching the backend contracts. Map Problem Details `type` to translated messages.
 - Auth state in `core/auth` as signals (current user, roles). Route guards (`canMatch`) for UX only. The API enforces authorization.
-- Errors: a global interceptor handles 401 (redirect to sign-in), 403 (forbidden page) and 429 (retry message). Never log tokens.
+- Errors: a global problem interceptor maps Problem Details `code` values to translated messages. 401 redirects to sign-in, and 429 shows a translated wait time from `Retry-After`. Never log tokens.
+- Passkeys: `identity/shared/webauthn.ts` wraps `navigator.credentials` (feature detection, `parseCreationOptionsFromJSON`/`parseRequestOptionsFromJSON` with a manual base64url fallback, and `toJSON()`). Cancel and `NotAllowedError` are mapped to a message, not to an error page. Sign-in uses conditional UI when `PublicKeyCredential.isConditionalMediationAvailable()` is true, plus a visible button.
+- Remove the `token` query parameter from the URL with `history.replaceState` after reading it in the confirm and recovery pages.
 
-## i18n (pt-BR, en-US, es-ES)
-- Every user-facing string is translatable. Never hard-code text in templates or TS. Use Angular built-in i18n (`i18n` attributes, `$localize`) with XLIFF files in `src/locale/`, or a runtime solution if runtime switching is required (decide once, document in an ADR, and keep one mechanism).
-- Locale-aware pipes for dates and numbers. The language preference is persisted per user.
+## i18n (pt-BR, en-US, es-ES) — runtime, ADR 0001
+- Runtime language switch without reload, using the in-house `I18n` service in `src/app/core/i18n/`. Do not use Angular's build-time i18n (template i18n attributes, the localize marker function, XLIFF files or the `@angular/localize` package). This project has one runtime mechanism only.
+- Templates: `{{ 'identity.signIn.title' | t }}` or `{{ 'identity.welcome' | t: { name } }}` for `{param}` interpolation. TypeScript: `inject(I18n).t(id, params)`.
+- Every message id goes into all three catalogs, `public/i18n/pt-BR.json`, `en-US.json` and `es-ES.json`, as a flat JSON key. `catalog-parity.spec.ts` fails on missing or extra keys. Use stable, dotted ids by slice (for example `identity.signUp.submit`).
+- The `I18n` service falls back to en-US for missing ids, and it lazy-loads the other catalogs from `/i18n/{culture}.json`. Culture changes are signals, so `| t` updates without reload.
+- Route titles are message ids. `I18nTitleStrategy` translates them and updates `document.title` on a culture change.
+- The active culture sets `<html lang>`. Use Angular's locale-aware pipes (`date`, `number`) with the active culture for dates and numbers.
+- Preference: `localStorage` for anonymous visitors, and the server's `PreferredCulture` for signed-in accounts (synced at sign-in and when changed).
+- Plurals and gender are not supported by the catalogs. Use separate ids.
 
 ## Accessibility (Angular specifics)
 - Native elements first. Extend `button[abButton]` instead of clickable divs.

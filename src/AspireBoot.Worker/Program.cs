@@ -1,5 +1,6 @@
 using AspireBoot.Core;
 using AspireBoot.Core.Persistence;
+using AspireBoot.Worker.Identity.Notifications.SendConfirmationEmail;
 
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -39,12 +40,15 @@ builder.Host.UseWolverine(options =>
     options.Policies.UseDurableInboxOnAllListeners();
     options.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
     options.UseRabbitMqUsingNamedConnection("rabbitmq").AutoProvision();
+    options.ListenToRabbitQueue("identity-notifications");
+    options.Discovery.IncludeAssembly(typeof(SendConfirmationEmailHandler).Assembly);
 
     options.Services.CritterStackDefaults(defaults =>
     {
         defaults.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
         defaults.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
-        defaults.Production.GeneratedCodeMode = TypeLoadMode.Static;
+        // Tests host the apps with the "Testing" environment and need runtime handler discovery; production stays pre-generated.
+        defaults.Production.GeneratedCodeMode = builder.Environment.IsEnvironment("Testing") ? TypeLoadMode.Dynamic : TypeLoadMode.Static;
         defaults.Production.ResourceAutoCreate = AutoCreate.None;
     });
 });
@@ -58,3 +62,9 @@ var app = builder.Build();
 app.MapDefaultEndpoints();
 
 return await app.RunJasperFxCommands(args);
+
+namespace AspireBoot.Worker
+{
+    /// <summary>Marker type so integration tests can host the Worker with WebApplicationFactory.</summary>
+    public partial class Program;
+}

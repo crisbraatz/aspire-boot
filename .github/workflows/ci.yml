@@ -25,6 +25,14 @@ jobs:
       - run: dotnet build AspireBoot.slnx -c Release
       - name: Fail on missing EF Core migrations
         run: dotnet ef migrations has-pending-model-changes -p src/AspireBoot.Core -s src/AspireBoot.Api --no-build --configuration Release
+      - name: Wolverine codegen compiles for Static mode (same check as the Dockerfiles)
+        env:
+          ConnectionStrings__aspireboot: "Host=codegen;Database=codegen"
+          ConnectionStrings__rabbitmq: "amqp://codegen"
+          ConnectionStrings__redis: "codegen:6379"
+        run: |
+          dotnet run --project src/AspireBoot.Api -c Release --no-build --no-launch-profile -- codegen test
+          dotnet run --project src/AspireBoot.Worker -c Release --no-build --no-launch-profile -- codegen test
       - name: Unit and integration tests (Testcontainers)
         run: dotnet test --solution AspireBoot.slnx -c Release --no-build
 

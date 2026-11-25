@@ -1,0 +1,158 @@
+<section aria-labelledby="passkeys-heading" class="mx-auto w-full max-w-2xl space-y-6">
+  <div class="space-y-2">
+    <h1 id="passkeys-heading" class="text-3xl font-bold tracking-tight">
+      {{ 'account.passkeys.heading' | t }}
+    </h1>
+    <p class="text-slate-600 dark:text-slate-300">{{ 'account.passkeys.lead' | t }}</p>
+  </div>
+
+  @if (status(); as current) {
+    <p
+      role="status"
+      class="rounded-md border border-brand-100 bg-brand-50 p-3 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+    >
+      {{ text(current) }}
+    </p>
+  }
+
+  @if (notice(); as current) {
+    <p
+      role="alert"
+      class="rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100"
+    >
+      {{ text(current) }}
+    </p>
+  }
+
+  @if (loading()) {
+    <p class="text-slate-600 dark:text-slate-300" aria-live="polite">
+      {{ 'auth.waitingDevice' | t }}
+    </p>
+  } @else if (passkeys().length === 0) {
+    <p class="text-slate-600 dark:text-slate-300">{{ 'account.passkeys.empty' | t }}</p>
+  } @else {
+    <ul class="space-y-3">
+      @for (passkey of passkeys(); track passkey.id) {
+        <li class="space-y-3 rounded-md border border-slate-300 p-4 dark:border-slate-600">
+          @if (editingId() === passkey.id) {
+            <form novalidate class="space-y-3" (submit)="saveRename($event, passkey.id)">
+              @let nameError = errorFor(renameForm.name());
+              <div class="space-y-1">
+                <label for="passkey-rename" class="block text-sm font-medium">
+                  {{ 'account.passkeys.renameLabel' | t }}
+                </label>
+                <input
+                  id="passkey-rename"
+                  type="text"
+                  autocomplete="off"
+                  [formField]="renameForm.name"
+                  class="block min-h-11 w-full rounded-md border border-slate-600 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-100"
+                  [attr.aria-invalid]="nameError ? 'true' : null"
+                  [attr.aria-describedby]="nameError ? 'passkey-rename-error' : null"
+                />
+                @if (nameError) {
+                  <p id="passkey-rename-error" class="text-sm text-red-900 dark:text-red-200">
+                    {{ nameError }}
+                  </p>
+                }
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  data-action="save-rename"
+                  class="inline-flex min-h-11 items-center justify-center rounded-md bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                >
+                  {{ 'account.passkeys.save' | t }}
+                </button>
+                <button
+                  type="button"
+                  data-action="cancel-rename"
+                  class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-600 px-4 py-2 font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+                  (click)="cancelRename()"
+                >
+                  {{ 'account.passkeys.cancel' | t }}
+                </button>
+              </div>
+            </form>
+          } @else {
+            <div class="space-y-1">
+              <p class="font-medium">{{ passkey.name }}</p>
+              <p class="text-sm text-slate-600 dark:text-slate-300">
+                {{ 'account.passkeys.createdAt' | t: { date: createdOn(passkey) } }}
+              </p>
+            </div>
+
+            @if (confirmingId() === passkey.id) {
+              <div role="group" class="space-y-3" [attr.aria-label]="passkey.name">
+                <p class="text-sm">
+                  {{ 'account.passkeys.removeConfirm' | t: { name: passkey.name } }}
+                </p>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    data-action="confirm-remove"
+                    class="inline-flex min-h-11 items-center justify-center rounded-md bg-red-800 px-4 py-2 font-medium text-white hover:bg-red-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    [disabled]="busy()"
+                    (click)="confirmRemove(passkey.id)"
+                  >
+                    {{ 'account.passkeys.confirmRemove' | t }}
+                  </button>
+                  <button
+                    type="button"
+                    data-action="cancel-remove"
+                    class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-600 px-4 py-2 font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+                    (click)="cancelRemove()"
+                  >
+                    {{ 'account.passkeys.cancel' | t }}
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  data-action="rename"
+                  class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-600 px-4 py-2 font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+                  (click)="startRename(passkey)"
+                >
+                  {{ 'account.passkeys.rename' | t
+                  }}<span class="sr-only"> {{ passkey.name }}</span>
+                </button>
+                <button
+                  type="button"
+                  data-action="remove"
+                  class="inline-flex min-h-11 items-center justify-center rounded-md border border-red-700 px-4 py-2 font-medium text-red-900 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-400 dark:text-red-100 dark:hover:bg-red-950"
+                  [disabled]="onlyOne()"
+                  [attr.aria-describedby]="onlyOne() ? 'passkeys-only-one' : null"
+                  (click)="askRemove(passkey)"
+                >
+                  {{ 'account.passkeys.remove' | t
+                  }}<span class="sr-only"> {{ passkey.name }}</span>
+                </button>
+              </div>
+            }
+          }
+        </li>
+      }
+    </ul>
+
+    @if (onlyOne()) {
+      <p id="passkeys-only-one" class="text-sm text-slate-600 dark:text-slate-300">
+        {{ 'account.passkeys.onlyOne' | t }}
+      </p>
+    }
+  }
+
+  <div>
+    <button
+      type="button"
+      data-action="add"
+      class="inline-flex min-h-11 items-center justify-center rounded-md bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+      [disabled]="busy()"
+      [attr.aria-busy]="busy()"
+      (click)="addPasskey()"
+    >
+      {{ 'account.passkeys.add' | t }}
+    </button>
+  </div>
+</section>

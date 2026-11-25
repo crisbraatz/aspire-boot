@@ -19,7 +19,7 @@ This project is managed by **AI Workflow**. These instructions apply to every AI
 ## Commands (from the repository root)
 - Install: `dotnet tool restore && dotnet restore && npm --prefix src/AspireBoot.Web ci`
 - Run (everything, via Aspire): `dotnet run --project src/AspireBoot.AppHost` (or `aspire run`), then open https://localhost:8443
-- Test: `./scripts/test.sh` (detects Docker or Podman for Testcontainers)
+- Test: `./scripts/test.sh` (detects Docker or Podman for Testcontainers). Filters pass straight to `dotnet test`, for example `./scripts/test.sh --filter-namespace 'AspireBoot.Tests.Unit*'`.
 - Lint/format: `dotnet format AspireBoot.slnx` and `npm --prefix src/AspireBoot.Web run lint && npm --prefix src/AspireBoot.Web run format`
 - Build: `dotnet build AspireBoot.slnx && npm --prefix src/AspireBoot.Web run build`
 - Full gate: `./scripts/verify.sh`
@@ -29,12 +29,12 @@ This project is managed by **AI Workflow**. These instructions apply to every AI
 These rules exist so that AI-generated code stays consistent. Follow them exactly, and when in doubt, ask instead of improvising.
 1. **Placement:** put every file where `architecture-ddd-vertical-slices` says. A feature is a set of slice folders (`<Context>/<Group>/<VerbNoun>/`) in Api/Worker/Web, plus domain changes in `Core/<Context>/Domain`. No `Services/`, `Helpers/`, `Utils/`, `Managers/`, `DTOs/`, `components/` folders. Slices never call other slices.
 2. **Domain first:** business rules and invariants live in aggregates and value objects (`Core/<Context>/Domain`), never in endpoints, handlers, EF configurations or Angular components. No anemic models.
-3. **Secure by default:** the fallback authorization policy requires authentication, so anonymous endpoints must say `.AllowAnonymous()` deliberately. Authorization uses named policies. Validate all input. Return Problem Details, never exception details. Rate-limit auth endpoints. Never log secrets or PII.
+3. **Secure by default:** the fallback authorization policy requires authentication, so anonymous endpoints must say `.AllowAnonymous()` deliberately. Authorization uses named policies. Validate all input. Return Problem Details, never exception details. Every /api endpoint declares a named rate-limit policy from `RateLimitPolicies` (partitioned by IP, and by user when authenticated); 429 returns Problem Details with Retry-After. Accounts are passwordless: passkeys only, with no password API (ADR 0003). Never log secrets or PII.
 4. **Messaging:** cross-process side effects (email, audit, cleanup) go through the Wolverine outbox to the Worker. Never call SMTP or publish to RabbitMQ directly from a request.
 5. **Data access:** use `AppDbContext` directly (no repository layer). Reads use `AsNoTracking` + `Select` projections + pagination. Every query-driven index is declared in configuration. Every model change ships with a reviewed migration.
 6. **Observability:** every slice is traceable. Use source-generated `[LoggerMessage]` logging (no string interpolation) and business metrics per `opentelemetry`, with low-cardinality attributes only.
 7. **Tests first:** TDD. Domain → `tests/AspireBoot.Tests/Unit`. Slices → `tests/AspireBoot.Tests/Integration` against real containers. Frontend → `*.spec.ts` beside the code. Lint, build and all tests must pass before committing.
-8. **Frontend:** follow Angular's official AI rules (signals, standalone, `input()`/`output()`, native control flow, `inject()`, Signal Forms, lazy routes). No hard-coded user-facing text (i18n in pt-BR/en-US/es-ES). WCAG 2.2 AA and responsive from 320px. Tailwind tokens only from `@theme`.
+8. **Frontend:** follow Angular's official AI rules (signals, standalone, `input()`/`output()`, native control flow, `inject()`, Signal Forms, lazy routes). No hard-coded user-facing text: translate with the `I18n` service (`| t` in templates, `I18n.t()` in TypeScript) and add each id to all three JSON catalogs in `public/i18n/` (pt-BR/en-US/es-ES; ADR 0001). WCAG 2.2 AA and responsive from 320px. Tailwind tokens only from `@theme`.
 9. **Performance:** async with `CancellationToken` everywhere, no N+1, no unbounded lists, HybridCache for hot reads, and no blocking calls.
 10. **Dependencies:** versions are pinned centrally (`Directory.Packages.props`, `package-lock.json`, image tags). Check official docs for the pinned version before using an API. Do not add a package when the framework already solves the problem.
 

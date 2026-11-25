@@ -1,17 +1,30 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { I18n } from '../../core/i18n/i18n';
 import { HomePage } from './home.page';
+
+const ENGLISH = {
+  'home.heading': 'Your idea, secure from day one',
+  'home.lead':
+    'Accounts, permissions and production-grade infrastructure are ready. Focus on your business.',
+  'home.apiStatus.online': 'API online · version {version}',
+  'home.apiStatus.offline': 'API unavailable right now.',
+  'home.apiStatus.checking': 'Checking API status…',
+};
 
 describe('HomePage', () => {
   let httpTesting: HttpTestingController;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     TestBed.configureTestingModule({
       imports: [HomePage],
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
     httpTesting = TestBed.inject(HttpTestingController);
+    const loading = TestBed.inject(I18n).use('en-US');
+    httpTesting.expectOne('/i18n/en-US.json').flush(ENGLISH);
+    await loading;
   });
 
   afterEach(() => httpTesting.verify());

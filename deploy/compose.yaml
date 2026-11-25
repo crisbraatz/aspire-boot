@@ -13,6 +13,9 @@ x-app-env: &app-env
   ASPNETCORE_ENVIRONMENT: Production
   AllowedHosts: ${APP_DOMAIN}
   ReverseProxy__KnownNetworks__0: 172.30.0.0/24
+  App__PublicBaseUrl: https://${APP_DOMAIN}
+  Passkeys__ServerDomain: ${APP_DOMAIN}
+  Passkeys__AllowedOrigins__0: https://${APP_DOMAIN}
   ConnectionStrings__aspireboot: Host=postgres;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Keepalive=30;Tcp Keepalive=true
   ConnectionStrings__rabbitmq: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
   ConnectionStrings__redis: redis:6379,password=${REDIS_PASSWORD}

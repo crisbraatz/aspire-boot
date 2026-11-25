@@ -8,7 +8,8 @@ Versions verified on 2026-11-25 against NuGet, npm, the .NET release index, node
 | Runtime | .NET (SDK) | 10.0 LTS (SDK 10.0.404) | Long-term support; Aspire-native |
 | Orchestration | Aspire | 17.0.0 | Local orchestration, service defaults, dashboard |
 | API | ASP.NET Core Minimal APIs | 10.0 | Lightweight endpoints that fit vertical slices |
-| Auth | ASP.NET Core Identity (cookies) + roles | 10.0 | Proven account/session/RBAC foundation |
+| Auth | ASP.NET Core Identity 10 with passkeys (WebAuthn) + cookies + roles | 10.0.15 | Passwordless accounts; see ADR 0003 |
+| Rate limiting | ASP.NET Core `System.Threading.RateLimiting` (in memory) | 10.0 | Named policies on every `/api` endpoint; see ADR 0002 |
 | API docs | Scalar.AspNetCore + Microsoft.AspNetCore.OpenApi | 3.2.0 / 10.0 | Interactive OpenAPI documentation |
 | ORM | EF Core + Npgsql provider (migrations) | 10.0.15 / 10.0.4 | Typed data access, versioned schema |
 | Database | PostgreSQL | 19 (alpine) | Relational store for Identity, domain, outbox/inbox |
@@ -22,6 +23,7 @@ Versions verified on 2026-11-25 against NuGet, npm, the .NET release index, node
 | Observability | OpenTelemetry (.NET SDK, OTLP) | 1.21.0 | Logs, metrics, traces across API and Worker |
 | Tests | xUnit v3 + Testcontainers + NSubstitute + Respawn | 4.0.3 / 4.17.0 | Real infrastructure in integration tests |
 | Frontend | Angular (standalone, signals, zoneless) | 22.3.0 | Structured SPA framework |
+| Frontend i18n | In-house signal `I18n` service with JSON catalogs | — | Runtime language switch without reload; see ADR 0001 |
 | Frontend language | TypeScript | 6.0.x (TypeScript 7 is excluded: Angular 22 and typescript-eslint both require >=6.0 <6.1) | Type safety |
 | Styling | Tailwind CSS | 4.3.5 | Utility-first, responsive styling |
 | Frontend tests | Vitest (Angular unit-test builder) + @vitest/coverage-v8 | 5.x | Fast unit/component tests |
@@ -92,27 +94,56 @@ docs/
 - **Platform:** technical, cross-cutting endpoints such as public app info. No business rules live here.
 
 ## Conventions
-- **Language:** all code, identifiers, comments, logs and technical docs are in English. The UI ships in pt-BR, en-US and es-ES, and no user-facing string is hard-coded. The scaffold marks text with Angular i18n (`i18n` attributes and `$localize` with stable `@@ids`). Whether locales switch at build time (one build per locale) or at runtime is decided in the first UI feature and recorded as an ADR.
+- **Language:** all code, identifiers, comments, logs and technical docs are in English. The UI ships in pt-BR, en-US and es-ES, and no user-facing string is hard-coded.
+- **Runtime i18n (ADR 0001):** the locale switches at runtime without a reload. `I18n` (`core/i18n/i18n.ts`) is a signal-based service, `| t` (`TranslatePipe`) is the template pipe, and `I18nTitleStrategy` translates route titles.
+  - Catalogs are flat JSON files keyed by stable message ids in `src/AspireBoot.Web/public/i18n/{pt-BR,en-US,es-ES}.json`. en-US is the fallback and loads with every culture.
+  - Every new message id goes into all three catalogs. The catalog parity spec (`catalog-parity.spec.ts`) fails on missing or extra keys.
+  - Use `{param}` placeholders for interpolation. Plurals use separate ids.
+  - The culture is stored in `localStorage` for anonymous visitors and in `Users.PreferredCulture` for accounts. Server emails use the same culture.
+  - `@angular/localize` is not used.
+- **Persistence naming:** database columns are snake_case, including in raw SQL (`UseSnakeCaseNamingConvention`). The identity schema is `IdentitySchemaVersions.Version3` (passkey table `AspNetUserPasskeys`), set in `AddCoreInfrastructure` so the API and the Worker share one model.
+- **Transactions:** the outbox is the transaction boundary. Slices that change state and send messages call `SaveChangesAndFlushMessagesAsync`, which commits the transaction and flushes the outbox in one step. Locks that protect invariants (for example the last passkey) run inside the same transaction.
 - **Naming:** a slice folder is named with a verb and a noun (`ListUsers`). Files inside it carry the slice name (`ListUsersEndpoint`, `ListUsersRequest`, `ListUsersHandler`).
 - **API style:** REST-ish resource routes under `/api`, Minimal API endpoint groups, `TypedResults`, RFC 9457 Problem Details for every error, and pagination with explicit limits.
 - **Errors:** expected failures return result types/Problem Details. Exceptions are reserved for the truly exceptional.
 - **Configuration:** strongly typed options, validated on start. Secrets come only from user-secrets (dev) or environment variables (prod).
-- **Logging:** structured logs with source-generated `LoggerMessage`. No PII or secrets in logs. Every slice emits traces. Key business metrics use `System.Diagnostics.Metrics`.
+- **Logging:** structured logs with source-generated `LoggerMessage`. No PII or secrets in logs. Every slice emits traces. Key business metrics use `System.Diagnostics.Metrics`. Identity metrics use the meter `AspireBoot.Identity` (`IdentityMetrics`) with low-cardinality tags only (outcome or policy name, never email, user id or passkey name).
+- **Rate limiting (ADR 0002):** every endpoint under `/api` declares one named policy from `RateLimitPolicies` (`signup`, `email-link`, `passkey-ceremony`, `authenticated`, `public`). Authenticated callers are partitioned by user, anonymous callers by client IP. Only the Caddy network is trusted for `X-Forwarded-For` (`ReverseProxy:KnownNetworks`, `ForwardLimit = 1`). A rejected request returns 429 Problem Details with `Retry-After`. `RateLimitCoverageTests` fails when an endpoint has no policy or an unsafe endpoint accepts a request without the antiforgery token.
 - **Performance:** async everywhere, `AsNoTracking` for reads, projections instead of loading entities, indexes declared in EF configurations, and output caching or Redis caching where reads dominate.
-- **Frontend:** standalone components, signals, `OnPush`/zoneless, lazy-loaded routes per slice, Tailwind utilities, and WCAG 2.2 AA (semantic HTML, keyboard navigation, focus management, contrast).
+- **Frontend:** standalone components, signals, `OnPush`/zoneless, lazy-loaded routes per slice, Tailwind utilities, runtime i18n (ADR 0001), and WCAG 2.2 AA (semantic HTML, keyboard navigation, focus management, contrast). The API client sends `X-XSRF-TOKEN` read from the `XSRF-TOKEN` cookie. The cookie is issued by `GET /api/antiforgery/token`, and the token must be refreshed after sign-in and sign-out, because the server rotates it with the session.
 - **Formatting:** `dotnet format` + `.editorconfig` with analyzers as errors. ESLint + Prettier on the frontend.
 
 ## Testing strategy
 - **Unit (`tests/AspireBoot.Tests/Unit`):** domain invariants and pure logic, with xUnit v3 and NSubstitute.
 - **Integration (`tests/AspireBoot.Tests/Integration`):** full HTTP slices and Worker handlers against real PostgreSQL, RabbitMQ, Redis, RustFS and Mailpit through Testcontainers, using `WebApplicationFactory` and Respawn to reset data.
-- **Frontend:** Vitest for components and services.
+  - Integration test classes run serialized (`MaxThreads = 1`), because they share one database and one Mailpit inbox.
+  - Mailpit (`axllent/mailpit`, same version as the AppHost) captures the mail. `MailpitClient` polls its HTTP API with a timeout.
+  - `AspireBootWorkerFactory` hosts the Worker in memory, so outbox messages reach real SMTP. Wolverine uses dynamic code generation in the `Testing` environment (production stays static).
+  - `SoftwareAuthenticator` (in `Support/WebAuthn`) performs WebAuthn ceremonies: an ES256 key, `clientDataJSON`, authenticator data and a `none` attestation, all against origin `https://localhost`.
+  - `IdentityClient` keeps a cookie-aware client and fetches the antiforgery token. The API factory uses high rate-limit values. Only the 429 test lowers them.
+  - Expiry tests use `AspireBootExpiringApiFactory`, which sets a 1 s token lifespan, instead of `FakeTimeProvider`.
+  - Test users are created with culture `pt-BR`, so localized emails are covered.
+- **Frontend:** Vitest for components and services, with `HttpTestingController` and a mocked `navigator.credentials`.
 - **Run:** `./scripts/test.sh` (Docker or Podman auto-detected). CI runs everything.
 - **TDD:** every behavior change starts with a failing test.
 
 ## Security
-- Identity with secure, HttpOnly, SameSite cookies, antiforgery (CSRF), account lockout, required email confirmation and role-based authorization policies (RBAC: Admin, User), enforced on the server.
-- Input validation in every slice. EF parameterized queries only.
-- Security headers (CSP, HSTS and others) set by Caddy and the API. Rate limiting on auth endpoints.
+- **Passwordless accounts (ADR 0003):** sign-in and account recovery use passkeys (WebAuthn / FIDO2) only. No password is accepted or stored: there are no password APIs, and `PasswordHash` stays null. `NoPasswordApisTests` fails if the API or Core reference a password API.
+  - Relying party: `Passkeys:ServerDomain` and `Passkeys:AllowedOrigins` pin the RP ID and the exact origins (`ValidateOrigin`). Resident keys are required.
+  - Confirmation and recovery tokens are single use and last 2 hours. Completing a flow updates the security stamp, which ends the other sessions.
+  - The last passkey of an account cannot be removed. The removal locks the account row, so parallel removals cannot both succeed.
+- **Sessions:** cookie `__Host-aspireboot`, HttpOnly, Secure, SameSite=Strict, 8 hours with sliding expiration. "Keep me signed in" is a persistent cookie only by explicit choice. The security stamp is checked every `Identity:SecurityStampValidationSeconds` (default 60).
+- Antiforgery (CSRF) with the `X-XSRF-TOKEN` header on every unsafe `/api` request, and role-based authorization policies (RBAC: Admin, User), enforced on the server. The fallback policy requires an authenticated user.
+- **Enumeration:** sign-up, resend and recovery return identical `202` responses. Sign-in failures return one generic `401`. Residual timing risk is accepted (ADR 0003).
+- **Rate limiting (ADR 0002):** named policies on every endpoint, partitioned by user or client IP, with only the Caddy network trusted for forwarded headers. In-memory counters are accepted for a single VPS.
+- **Configuration keys** (documented in `deploy/.env.example`):
+  - `Passkeys__ServerDomain`, `Passkeys__AllowedOrigins__0`: relying party and exact origins.
+  - `App__PublicBaseUrl`: base of the links in emails (`/confirm`, `/recover/complete`).
+  - `Identity__EmailCooldownSeconds` (default 60) and `Identity__SecurityStampValidationSeconds` (default 60).
+  - `RateLimiting__<policy>__PermitLimit` and `RateLimiting__<policy>__WindowSeconds`, with the defaults in `RateLimitingExtensions`.
+  - `ReverseProxy__KnownNetworks__0`: the proxy network whose forwarded headers are trusted.
+- Input validation in every slice. EF parameterized queries only. Credential JSON is capped in size and passkey names are 1 to 50 characters.
+- Security headers (CSP, HSTS and others) set by Caddy and the API.
 - Data Protection keys persisted in PostgreSQL and protected with a certificate in production.
 - Uploads: allow-listed content types, size limits and server-generated object keys.
 - Dependency audit (osv-scanner, `dotnet list package --vulnerable`, `npm audit`), secret scanning (gitleaks), container scanning (trivy) and SAST (semgrep) in CI.
@@ -125,8 +156,5 @@ docs/
 - Telemetry: an OTLP endpoint is configurable (the Aspire dashboard in standalone mode by default).
 - **Optional:** managed cloud (Azure/AWS) by swapping container resources for managed services through Aspire.
 
-## ADR-001 — Initial stack and architecture
-- Status: accepted
-- Context: an open-source template so that technical and non-technical builders can start secure web products with authentication, RBAC and production-grade infrastructure ready, cheap to host on one VPS, and easy for AI assistants to extend without architectural drift.
-- Decision: .NET 10 LTS with Aspire. The solution has AppHost, ServiceDefaults, Api, Worker, Core and a single Tests project. The infrastructure is PostgreSQL + EF Core migrations, Wolverine (outbox/inbox) over RabbitMQ, Redis, RustFS, MailKit with Mailpit for dev/tests, Caddy, ASP.NET Core Identity, Scalar and OpenTelemetry. The frontend is Angular 22 + Tailwind 4. The architecture is DDD + Vertical Slices in both backend and frontend.
-- Consequences: a solid, secure base with more moving parts than a minimal template. Aspire hides that complexity locally, and production needs a documented compose deployment. Strict slice and dependency rules plus Level 2/3 AI skills are required to keep contributions consistent.
+## Decision records
+Significant decisions live in [`adr/`](adr/README.md): the initial stack and architecture (ADR 0000), runtime i18n (ADR 0001), rate limiting (ADR 0002) and passwordless passkeys (ADR 0003).

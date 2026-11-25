@@ -1,5 +1,8 @@
 using AspireBoot.Core.Persistence;
 
+using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
+
 using Microsoft.EntityFrameworkCore;
 
 using Npgsql;
@@ -28,6 +31,21 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
     private readonly RedisContainer _redis = new RedisBuilder("redis:8.12.0-alpine").Build();
 
+    // Same image as the AppHost (CommunityToolkit.Aspire.Hosting.Mailpit 17.0.0 with Mailpit v1.34).
+    private const int MailpitSmtpPort = 1025;
+    private const int MailpitHttpPort = 8025;
+
+    private readonly IContainer _mailpit = new ContainerBuilder("axllent/mailpit:v1.34")
+        .WithPortBinding(MailpitSmtpPort, true)
+        .WithPortBinding(MailpitHttpPort, true)
+        .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request => request
+            .ForPort(MailpitHttpPort)
+            .ForPath("/api/v1/info")))
+        .Build();
+
+    private HttpClient? _mailpitHttp;
+    private MailpitClient? _mailpitClient;
+
     private Respawner? _respawner;
 
     public string PostgresConnectionString => _postgres.GetConnectionString();
@@ -36,12 +54,26 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
     public string RedisConnectionString => _redis.GetConnectionString();
 
+    public string SmtpHost => _mailpit.Hostname;
+
+    public int SmtpPort => _mailpit.GetMappedPublicPort(MailpitSmtpPort);
+
+    /// <summary>Mailpit HTTP API client for reading the mail sent during tests.</summary>
+    public MailpitClient Mailpit => _mailpitClient
+        ?? throw new InvalidOperationException("The fixture has not been initialized.");
+
     public async ValueTask InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _rabbitMq.StartAsync(), _redis.StartAsync());
+        await Task.WhenAll(_postgres.StartAsync(), _rabbitMq.StartAsync(), _redis.StartAsync(), _mailpit.StartAsync());
+
+        _mailpitHttp = new HttpClient
+        {
+            BaseAddress = new Uri($"http://{_mailpit.Hostname}:{_mailpit.GetMappedPublicPort(MailpitHttpPort)}/"),
+        };
+        _mailpitClient = new MailpitClient(_mailpitHttp);
 
         var options = new DbContextOptionsBuilder<AppDbContext>();
-        options.UseAspireBootNpgsql(PostgresConnectionString);
+        options.UseAspireBootNpgsql(PostgresConnectionString).UseStandaloneIdentitySchema();
         await using (var context = new AppDbContext(options.Options))
         {
             await context.Database.MigrateAsync();
@@ -57,12 +89,13 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         });
     }
 
-    /// <summary>Deletes all application data. Call at the start of every test that writes data.</summary>
+    /// <summary>Deletes all application data and captured mail. Call at the start of every test that writes data.</summary>
     public async Task ResetDatabaseAsync()
     {
         await using var connection = new NpgsqlConnection(PostgresConnectionString);
         await connection.OpenAsync();
         await _respawner!.ResetAsync(connection);
+        await Mailpit.DeleteAllAsync(CancellationToken.None);
     }
 
     public async ValueTask DisposeAsync()
@@ -70,5 +103,7 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         await _postgres.DisposeAsync();
         await _rabbitMq.DisposeAsync();
         await _redis.DisposeAsync();
+        await _mailpit.DisposeAsync();
+        _mailpitHttp?.Dispose();
     }
 }

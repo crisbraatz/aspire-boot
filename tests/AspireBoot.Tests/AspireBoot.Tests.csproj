@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\AspireBoot.Api\AspireBoot.Api.csproj" />
     <ProjectReference Include="..\..\src\AspireBoot.Core\AspireBoot.Core.csproj" />
+    <ProjectReference Include="..\..\src\AspireBoot.Worker\AspireBoot.Worker.csproj" Aliases="WorkerApp" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />

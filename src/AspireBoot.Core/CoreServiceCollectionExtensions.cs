@@ -3,7 +3,9 @@ using Amazon.S3;
 
 using AspireBoot.Core.Infrastructure.Email;
 using AspireBoot.Core.Infrastructure.Storage;
+using AspireBoot.Core.Persistence;
 
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -18,6 +20,9 @@ public static class CoreServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddSingleton(TimeProvider.System);
+
+        // The EF model (and its passkey table) is cached per process, so every host must map the same Identity schema.
+        services.Configure<IdentityOptions>(options => options.Stores.SchemaVersion = PersistenceExtensions.IdentitySchemaVersion);
 
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName))

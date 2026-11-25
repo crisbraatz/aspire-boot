@@ -7,7 +7,7 @@ using MimeKit;
 
 namespace AspireBoot.Core.Infrastructure.Email;
 
-internal sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSender
+public sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSender
 {
     public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {

@@ -1,5 +1,7 @@
+using System.Net;
 using System.Threading.RateLimiting;
 
+using AspireBoot.Api.Identity.Shared;
 using AspireBoot.Core.Identity.Domain;
 using AspireBoot.Core.Persistence;
 
@@ -7,34 +9,56 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 
 namespace AspireBoot.Api.Shared;
 
 internal static class SecurityExtensions
 {
-    public const string AuthRateLimitPolicy = "auth";
-
     public static WebApplicationBuilder AddApiSecurity(this WebApplicationBuilder builder)
     {
         var services = builder.Services;
+        var configuration = builder.Configuration;
 
+        // Passwordless by design: accounts sign in with passkeys only. No password or lockout options exist.
         services.AddIdentityCore<User>(options =>
             {
+                options.Stores.SchemaVersion = PersistenceExtensions.IdentitySchemaVersion;
                 options.SignIn.RequireConfirmedEmail = true;
                 options.User.RequireUniqueEmail = true;
-                options.Password.RequiredLength = 12;
-                options.Password.RequireDigit = false;
-                options.Password.RequireLowercase = false;
-                options.Password.RequireUppercase = false;
-                options.Password.RequireNonAlphanumeric = false;
-                options.Lockout.AllowedForNewUsers = true;
-                options.Lockout.MaxFailedAccessAttempts = 5;
-                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
             })
             .AddRoles<Role>()
             .AddEntityFrameworkStores<AppDbContext>()
             .AddSignInManager()
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            .AddTokenProvider<PasskeyRecoveryTokenProvider<User>>(PasskeyRecoveryTokenProvider<User>.ProviderName);
+
+        services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromHours(2));
+
+        services.AddOptions<PasskeyOptions>()
+            .Bind(configuration.GetSection(PasskeyOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddOptions<IdentityPasskeyOptions>()
+            .Configure<IOptions<PasskeyOptions>>((identityPasskeys, passkeyOptions) =>
+            {
+                var passkeys = passkeyOptions.Value;
+                var allowedOrigins = passkeys.AllowedOrigins.ToHashSet(StringComparer.Ordinal);
+
+                identityPasskeys.ServerDomain = passkeys.ServerDomain;
+                identityPasskeys.ResidentKeyRequirement = "required";
+                identityPasskeys.ValidateOrigin = context => ValueTask.FromResult(allowedOrigins.Contains(context.Origin));
+            });
+
+        services.AddOptions<IdentityFlowOptions>()
+            .Bind(configuration.GetSection(IdentityFlowOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Configurable instead of the 30-minute default, so a passkey removal or recovery ends other sessions within the configured interval.
+        services.AddOptions<SecurityStampValidatorOptions>()
+            .Configure<IOptions<IdentityFlowOptions>>((stamp, flow) =>
+                stamp.ValidationInterval = TimeSpan.FromSeconds(flow.Value.SecurityStampValidationSeconds));
 
         services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
         services.ConfigureApplicationCookie(options =>
@@ -74,25 +98,29 @@ internal static class SecurityExtensions
             .SetApplicationName("AspireBoot")
             .PersistKeysToDbContext<AppDbContext>();
 
-        services.AddRateLimiter(options =>
-        {
-            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.AddPolicy(AuthRateLimitPolicy, context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
-        });
+        services.AddApiRateLimiting(configuration);
 
         services.Configure<ForwardedHeadersOptions>(options =>
-        {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            options.ForwardLimit = 1;
-            foreach (var network in builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [])
-            {
-                options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
-            }
-        });
+            ConfigureForwardedHeaders(options, configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? []));
 
         return builder;
+    }
+
+    /// <summary>Trusts X-Forwarded-For/Proto from the configured proxy networks only, one hop deep.</summary>
+    internal static void ConfigureForwardedHeaders(ForwardedHeadersOptions options, IEnumerable<string> knownNetworks)
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = 1;
+
+        foreach (var network in knownNetworks)
+        {
+            var parsed = System.Net.IPNetwork.Parse(network);
+            if (parsed.PrefixLength == 0)
+            {
+                throw new ArgumentException($"ReverseProxy:KnownNetworks must not contain a wildcard network: {network}.", nameof(knownNetworks));
+            }
+
+            options.KnownIPNetworks.Add(parsed);
+        }
     }
 }

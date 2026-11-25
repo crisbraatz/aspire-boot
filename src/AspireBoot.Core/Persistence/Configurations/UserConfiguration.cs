@@ -14,6 +14,12 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(DisplayName.MaxLength)
             .IsRequired();
 
+        builder.Property(user => user.PreferredCulture)
+            .HasConversion(culture => culture.Value, value => UiCulture.Create(value).Value)
+            .HasMaxLength(10)
+            .HasDefaultValue(UiCulture.Default)
+            .IsRequired();
+
         builder.Property(user => user.CreatedAt).IsRequired();
         builder.HasIndex(user => user.CreatedAt);
     }

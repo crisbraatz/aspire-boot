@@ -1,0 +1,110 @@
+<section aria-labelledby="signup-heading" class="mx-auto w-full max-w-md space-y-6">
+  <div class="space-y-2">
+    <h1 id="signup-heading" class="text-3xl font-bold tracking-tight">
+      {{ 'auth.signUp.heading' | t }}
+    </h1>
+    <p class="text-slate-600 dark:text-slate-300">{{ 'auth.signUp.lead' | t }}</p>
+  </div>
+
+  @if (sent()) {
+    <div
+      role="status"
+      class="space-y-2 rounded-md border border-brand-100 bg-brand-50 p-4 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+    >
+      <p>{{ 'auth.signUp.checkEmail' | t }}</p>
+      @if (resent()) {
+        <p>{{ 'auth.signUp.resent' | t }}</p>
+      }
+    </div>
+  }
+
+  @if (notice(); as current) {
+    <p
+      role="alert"
+      class="rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100"
+    >
+      {{ text(current) }}
+    </p>
+  }
+
+  <form novalidate class="space-y-5" (submit)="onSubmit($event)">
+    @let nameError = errorFor(signUpForm.displayName());
+    @let emailError = errorFor(signUpForm.email());
+
+    <div class="space-y-1">
+      <label for="signup-name" class="block text-sm font-medium">
+        {{ 'auth.signUp.displayName.label' | t }}
+      </label>
+      <input
+        id="signup-name"
+        type="text"
+        autocomplete="name"
+        [formField]="signUpForm.displayName"
+        class="block min-h-11 w-full rounded-md border border-slate-600 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-100"
+        [attr.aria-invalid]="nameError ? 'true' : null"
+        [attr.aria-describedby]="nameError ? 'signup-name-error' : null"
+      />
+      @if (nameError) {
+        <p id="signup-name-error" class="text-sm text-red-900 dark:text-red-200">{{ nameError }}</p>
+      }
+    </div>
+
+    <div class="space-y-1">
+      <label for="signup-email" class="block text-sm font-medium">
+        {{ 'auth.signUp.email.label' | t }}
+      </label>
+      <input
+        id="signup-email"
+        type="email"
+        autocomplete="email"
+        spellcheck="false"
+        [formField]="signUpForm.email"
+        class="block min-h-11 w-full rounded-md border border-slate-600 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-100"
+        [attr.aria-invalid]="emailError ? 'true' : null"
+        [attr.aria-describedby]="emailError ? 'signup-email-error' : null"
+      />
+      @if (emailError) {
+        <p id="signup-email-error" class="text-sm text-red-900 dark:text-red-200">
+          {{ emailError }}
+        </p>
+      }
+    </div>
+
+    <button
+      type="submit"
+      class="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+      [disabled]="busy()"
+      [attr.aria-busy]="busy()"
+    >
+      {{ 'auth.signUp.submit' | t }}
+    </button>
+  </form>
+
+  @if (sent()) {
+    <div class="space-y-2">
+      <button
+        type="button"
+        data-action="resend"
+        class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-600 px-4 py-2 font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+        [disabled]="cooldown() > 0"
+        (click)="resend()"
+      >
+        {{ 'auth.signUp.resend' | t }}
+      </button>
+      @if (cooldown() > 0) {
+        <p class="text-sm text-slate-600 dark:text-slate-300">
+          {{ 'auth.signUp.resendCooldown' | t: { seconds: cooldown() } }}
+        </p>
+      }
+    </div>
+  }
+
+  <p class="text-sm text-slate-600 dark:text-slate-300">
+    {{ 'auth.signUp.hasAccount' | t }}
+    <a
+      routerLink="/signin"
+      class="inline-flex min-h-11 items-center font-medium text-brand-700 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-brand-100"
+      >{{ 'shell.nav.signIn' | t }}</a
+    >
+  </p>
+</section>

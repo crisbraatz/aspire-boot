@@ -9,7 +9,7 @@ internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<A
     public AppDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>();
-        options.UseAspireBootNpgsql("Host=localhost;Database=aspireboot");
+        options.UseAspireBootNpgsql("Host=localhost;Database=aspireboot").UseStandaloneIdentitySchema();
 
         return new AppDbContext(options.Options);
     }

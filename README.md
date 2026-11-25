@@ -4,7 +4,7 @@
 
 AspireBoot is an open-source .NET Aspire template for builders, from experienced developers to people who have never programmed and work with AI assistants. Clone it and you get a production-grade foundation: accounts with email confirmation, sessions, user management, role-based access control, background jobs, file storage, email, HTTPS and full observability. Your time goes into what makes your idea unique.
 
-> Status: initial scaffold. The infrastructure, architecture and AI guidance are in place, and account and user features are built next.
+> Status: in development. The infrastructure, architecture and AI guidance are in place. Passwordless accounts with passkeys are being built on top of them.
 
 ## What's inside
 
@@ -12,7 +12,7 @@ AspireBoot is an open-source .NET Aspire template for builders, from experienced
 | :--- | :--- |
 | Orchestration (local) | .NET Aspire 17 |
 | API and Worker | .NET 10 LTS, ASP.NET Core Minimal APIs, Scalar API docs |
-| Accounts and RBAC | ASP.NET Core Identity (secure cookies, antiforgery, lockout) |
+| Accounts and RBAC | ASP.NET Core Identity 10, passwordless (passkeys only), secure cookies, antiforgery, rate limiting |
 | Database | PostgreSQL 19 + EF Core 10 migrations |
 | Messaging | RabbitMQ 4 + Wolverine (transactional outbox and durable inbox) |
 | Cache | Redis 8 + HybridCache |
@@ -20,10 +20,12 @@ AspireBoot is an open-source .NET Aspire template for builders, from experienced
 | Email | MailKit, with Mailpit capturing every email locally |
 | HTTPS / reverse proxy | Caddy (automatic Let's Encrypt in production) |
 | Observability | OpenTelemetry logs, metrics and traces across API → queue → Worker |
-| Frontend | Angular 22 + Tailwind CSS 4, responsive and accessible (WCAG 2.2 AA), pt-BR / en-US / es-ES |
+| Frontend | Angular 22 + Tailwind CSS 4, responsive and accessible (WCAG 2.2 AA), runtime language switch in pt-BR / en-US / es-ES |
 | Tests | xUnit v3 + Testcontainers (real infrastructure), Vitest |
 
-**Architecture:** Domain-Driven Design + Vertical Slices, in both backend and frontend. See [docs/architecture.md](docs/architecture.md).
+**Architecture:** Domain-Driven Design + Vertical Slices, in both backend and frontend. See [docs/architecture.md](docs/architecture.md) and the decision records in [docs/adr/](docs/adr/README.md) (passwordless passkeys, rate limiting, runtime i18n).
+
+**Passwordless accounts:** users sign up with an email, confirm it and register a passkey. There are no passwords anywhere in the product. Recovery is also by email link.
 
 **Built for AI-assisted development:** [AGENTS.md](AGENTS.md) and the skills in `.aiw/skills/` teach any assistant (Claude, Codex, Gemini, Copilot) where code belongs and how to keep it secure, tested and fast.
 
@@ -73,7 +75,7 @@ dotnet user-secrets --project src/AspireBoot.AppHost set "Parameters:storage-sec
 ./scripts/test.sh
 ```
 
-This runs unit tests, integration tests against real PostgreSQL, RabbitMQ and Redis containers, and the Angular tests. Full quality gate (format, lint, build, migrations check, tests):
+This runs unit tests, integration tests against real PostgreSQL, RabbitMQ, Redis and Mailpit containers, and the Angular tests. Pass xUnit filter options to run a subset of the backend tests, for example `./scripts/test.sh --filter-namespace 'AspireBoot.Tests.Unit*'`. Full quality gate (format, lint, build, migrations check, tests):
 
 ```bash
 ./scripts/verify.sh
