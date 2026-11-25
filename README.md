@@ -12,7 +12,8 @@ AspireBoot is an open-source .NET Aspire template for builders, from experienced
 | :--- | :--- |
 | Orchestration (local) | .NET Aspire 17 |
 | API and Worker | .NET 10 LTS, ASP.NET Core Minimal APIs, Scalar API docs |
-| Accounts and RBAC | ASP.NET Core Identity 10, passwordless (passkeys only), secure cookies, antiforgery, rate limiting |
+| Accounts and RBAC | ASP.NET Core Identity 10, passwordless (passkeys only), secure cookies, antiforgery, rate limiting, Admin and User roles, immediate session revocation |
+| Auditing | Append-only `audit_entries` table written in the same transaction as each change |
 | Database | PostgreSQL 19 + EF Core 10 migrations |
 | Messaging | RabbitMQ 4 + Wolverine (transactional outbox and durable inbox) |
 | Cache | Redis 8 + HybridCache |
@@ -24,7 +25,9 @@ AspireBoot is an open-source .NET Aspire template for builders, from experienced
 | Frontend | Angular 22 + Tailwind CSS 4, responsive and accessible (WCAG 2.2 AA), runtime language switch in pt-BR / en-US / es-ES |
 | Tests | xUnit v3 + Testcontainers (real infrastructure), Vitest |
 
-**Architecture:** Domain-Driven Design + Vertical Slices, in both backend and frontend. See [docs/architecture.md](docs/architecture.md) and the decision records in [docs/adr/](docs/adr/README.md) (passwordless passkeys, rate limiting, runtime i18n).
+**Architecture:** Domain-Driven Design + Vertical Slices, in both backend and frontend. See [docs/architecture.md](docs/architecture.md) and the decision records in [docs/adr/](docs/adr/README.md) (passwordless passkeys, rate limiting, runtime i18n, immediate session revocation, audit trail).
+
+**Administration:** Admins list and search users, view details and change roles. The last Admin can never be removed, and nobody can remove their own Admin role. Every change is audited.
 
 **Passwordless accounts:** users sign up with an email, confirm it and register a passkey. There are no passwords anywhere in the product. Recovery is also by email link.
 
@@ -90,6 +93,7 @@ This runs unit tests, integration tests against real PostgreSQL, RabbitMQ, Redis
    ```bash
    cp deploy/.env.example deploy/.env   # fill every value with strong secrets
    ```
+   To create the first Admin, set `BOOTSTRAP_ADMIN_EMAIL` to an address you control. That account becomes Admin when it confirms its email, once. Leave it empty for no bootstrap Admin. Locally, set `Bootstrap__AdminEmail` (or `dotnet user-secrets --project src/AspireBoot.Api set "Bootstrap:AdminEmail" "<email>"`).
 4. Start:
    ```bash
    docker compose -f deploy/compose.yaml --env-file deploy/.env up -d --build

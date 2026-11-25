@@ -28,7 +28,8 @@ public sealed partial class RateLimitCoverageTests(InfrastructureFixture infrast
     [GeneratedRegex(@"\{[^}]+\}")]
     private static partial Regex RouteParameter();
 
-    private readonly AspireBootApiFactory _api = new(infrastructure);
+    // The coverage account is the bootstrap Admin, so admin routes reach the antiforgery filter instead of stopping at 403.
+    private readonly AspireBootApiFactory _api = new(infrastructure, new Dictionary<string, string?> { ["Bootstrap:AdminEmail"] = "coverage-xsrf@aspireboot.test" });
     private readonly AspireBootWorkerFactory _worker = new(infrastructure);
 
     [Fact]
@@ -59,7 +60,7 @@ public sealed partial class RateLimitCoverageTests(InfrastructureFixture infrast
             var methods = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? [];
             foreach (var method in methods.Where(m => UnsafeMethods.Contains(m, StringComparer.Ordinal)))
             {
-                var uri = new Uri(RouteParameter().Replace(endpoint.RoutePattern.RawText!, "placeholder"), UriKind.Relative);
+                var uri = new Uri(RouteParameter().Replace(endpoint.RoutePattern.RawText!, match => match.Value.EndsWith(":guid}", StringComparison.Ordinal) ? Guid.Empty.ToString("D") : "placeholder"), UriKind.Relative);
                 // Endpoints that declare multipart input only match multipart requests, so send the shape they accept.
                 using HttpContent content = endpoint.Metadata.GetMetadata<IAcceptsMetadata>()?.ContentTypes.Contains("multipart/form-data") == true
                     ? new MultipartFormDataContent { { new StringContent("x"), "other" } }

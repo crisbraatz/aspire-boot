@@ -32,7 +32,6 @@ internal sealed partial class SignUpEndpoint
         SignUpRequest request,
         IDbContextOutbox<AppDbContext> outbox,
         UserManager<User> users,
-        RoleManager<Role> roles,
         IConfiguration configuration,
         TimeProvider clock,
         ILogger<SignUpEndpoint> logger,
@@ -80,11 +79,6 @@ internal sealed partial class SignUpEndpoint
             // Lost a race with a concurrent signup for the same email. Answer the same way.
             AlreadyRegistered(logger);
             return TypedResults.Accepted((string?)null);
-        }
-
-        if (!await roles.RoleExistsAsync(Roles.User))
-        {
-            await roles.CreateAsync(Role.Create(Roles.User));
         }
 
         await users.AddToRoleAsync(user, Roles.User);

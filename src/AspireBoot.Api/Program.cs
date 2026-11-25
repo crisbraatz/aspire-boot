@@ -21,13 +21,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
+// Must precede AddNpgsqlDbContext: the audit interceptor is added through ConfigureDbContext, which the pooled
+// context options read when they are first built.
+builder.Services.AddCoreInfrastructure(builder.Configuration);
+
 builder.AddNpgsqlDbContext<AppDbContext>(
     AppDbContext.ConnectionName,
     settings => settings.DisableRetry = true, // Wolverine owns transactions; EF retries conflict with them.
     options => options.UseAspireBootNpgsql(builder.Configuration.GetConnectionString(AppDbContext.ConnectionName)));
 builder.AddRedisDistributedCache("redis");
 
-builder.Services.AddCoreInfrastructure(builder.Configuration);
 builder.AddApiSecurity();
 
 builder.Services.AddProblemDetails(options =>
@@ -49,6 +52,7 @@ builder.Host.UseWolverine(options =>
     options.PublishMessage<RecoveryEmailRequested>().ToRabbitQueue("identity-notifications");
     options.PublishMessage<PasskeyAddedNotification>().ToRabbitQueue("identity-notifications");
     options.PublishMessage<PasskeyRemovedNotification>().ToRabbitQueue("identity-notifications");
+    options.PublishMessage<RoleChangedNotification>().ToRabbitQueue("identity-notifications");
     options.PublishMessage<AvatarObjectSuperseded>().ToRabbitQueue("identity-avatars");
     options.PublishMessage<AvatarObjectOrphanCheck>().ToRabbitQueue("identity-avatars");
 

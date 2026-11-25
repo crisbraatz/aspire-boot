@@ -17,6 +17,8 @@ export class Session {
   readonly isSignedIn = computed(() => this.user() !== null);
   /** True once GET me has answered at least once (signed in or anonymous). */
   readonly isLoaded = this.loaded.asReadonly();
+  /** True when the signed-in user has the Admin role. Only a UX hint; the API enforces it. */
+  readonly isAdmin = computed(() => this.user()?.roles.includes('Admin') ?? false);
 
   /**
    * Loads the current user. A 401 means anonymous; other failures are rethrown and keep the previous state.

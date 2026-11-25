@@ -21,6 +21,13 @@ public sealed class RateLimitingTests
     }
 
     [Fact]
+    public void AdminPolicy_HasStableNameAndIsRegistered()
+    {
+        Assert.Equal("admin", RateLimitPolicies.Admin);
+        Assert.Contains(RateLimitPolicies.Admin, RateLimitPolicies.All);
+    }
+
+    [Fact]
     public void GetPartitionKey_WhenAuthenticated_UsesUserId()
     {
         var userId = Guid.CreateVersion7().ToString();

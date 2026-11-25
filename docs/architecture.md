@@ -56,17 +56,18 @@ src/
   AspireBoot.ServiceDefaults/
   AspireBoot.Core/
     Identity/                    # bounded context
-      Domain/                    # aggregates, value objects, domain events
+      Domain/                    # aggregates, value objects, domain events, RoleAssignment
       Users/<Slice>/             # shared use-case logic per slice when needed by Api+Worker
       Shared/
-    Persistence/                 # AppDbContext, configurations, Migrations/
+    Persistence/                 # AppDbContext, configurations, Auditing/ (ADR 0006), Migrations/
     Messaging/                   # message contracts
     Infrastructure/              # email, storage, cache adapters
   AspireBoot.Api/
     Identity/
       Auth/<Slice>/              # Register, ConfirmEmail, ...
-      Users/<Slice>/             # ListUsers, GetUser, UpdateUser, ...
-      Sessions/<Slice>/
+      Account/<Slice>/           # GetMe, UploadAvatar, RemovePasskey, ...
+      Admin/<Slice>/             # ListUsers, GetUser, GetUserAvatar, ChangeUserRole (group /api/identity/admin)
+      Shared/                    # session validation, security stamp cache, bootstrap options
     Shared/                      # filters, problem details, auth policies
   AspireBoot.Worker/
     Identity/<Slice>/            # SendEmail, AuditUser, CleanupAvatars
@@ -104,13 +105,13 @@ docs/
   - `@angular/localize` is not used.
 - **Problem Details codes:** every error carries a camelCase `code` (also the `type` suffix), namespaced by the feature, for example `avatar.tooLarge` or `avatar.dimensionsTooLarge`. Clients branch on the code, never on the title.
 - **Persistence naming:** database columns are snake_case, including in raw SQL (`UseSnakeCaseNamingConvention`). Raw SQL that selects entity rows must include `xmin`, or use projections. The identity schema is `IdentitySchemaVersions.Version3` (passkey table `AspNetUserPasskeys`), set in `AddCoreInfrastructure` so the API and the Worker share one model.
-- **Transactions:** the outbox is the transaction boundary. Slices that change state and send messages call `SaveChangesAndFlushMessagesAsync`, which commits the transaction and flushes the outbox in one step. Locks that protect invariants (for example the last passkey) run inside the same transaction.
+- **Transactions:** the outbox is the transaction boundary. Slices that change state and send messages call `SaveChangesAndFlushMessagesAsync`, which commits the transaction and flushes the outbox in one step. Locks that protect invariants (the last passkey, the Admin role row) run inside the same transaction. Audit rows are written by the SaveChanges interceptor in that same transaction (ADR 0006).
 - **Naming:** a slice folder is named with a verb and a noun (`ListUsers`). Files inside it carry the slice name (`ListUsersEndpoint`, `ListUsersRequest`, `ListUsersHandler`).
 - **API style:** REST-ish resource routes under `/api`, Minimal API endpoint groups, `TypedResults`, RFC 9457 Problem Details for every error, and pagination with explicit limits.
 - **Errors:** expected failures return result types/Problem Details. Exceptions are reserved for the truly exceptional.
 - **Configuration:** strongly typed options, validated on start. Secrets come only from user-secrets (dev) or environment variables (prod).
 - **Logging:** structured logs with source-generated `LoggerMessage`. No PII or secrets in logs. Every slice emits traces. Key business metrics use `System.Diagnostics.Metrics`. Identity metrics use the meter `AspireBoot.Identity` (`IdentityMetrics`) with low-cardinality tags only (outcome or policy name, never email, user id or passkey name).
-- **Rate limiting (ADR 0002):** every endpoint under `/api` declares one named policy from `RateLimitPolicies` (`signup`, `email-link`, `passkey-ceremony`, `authenticated`, `avatar-upload`, `public`). Authenticated callers are partitioned by user, anonymous callers by client IP. Only the Caddy network is trusted for `X-Forwarded-For` (`ReverseProxy:KnownNetworks`, `ForwardLimit = 1`). A rejected request returns 429 Problem Details with `Retry-After`. `RateLimitCoverageTests` fails when an endpoint has no policy or an unsafe endpoint accepts a request without the antiforgery token.
+- **Rate limiting (ADR 0002):** every endpoint under `/api` declares one named policy from `RateLimitPolicies` (`signup`, `email-link`, `passkey-ceremony`, `authenticated`, `avatar-upload`, `admin`, `public`). Authenticated callers are partitioned by user, anonymous callers by client IP. Only the Caddy network is trusted for `X-Forwarded-For` (`ReverseProxy:KnownNetworks`, `ForwardLimit = 1`). A rejected request returns 429 Problem Details with `Retry-After`. `RateLimitCoverageTests` fails when an endpoint has no policy or an unsafe endpoint accepts a request without the antiforgery token.
 - **Performance:** async everywhere, `AsNoTracking` for reads, projections instead of loading entities, indexes declared in EF configurations, and output caching or Redis caching where reads dominate.
 - **Frontend:** standalone components, signals, `OnPush`/zoneless, lazy-loaded routes per slice, Tailwind utilities, runtime i18n (ADR 0001), and WCAG 2.2 AA (semantic HTML, keyboard navigation, focus management, contrast). The API client sends `X-XSRF-TOKEN` read from the `XSRF-TOKEN` cookie. The cookie is issued by `GET /api/antiforgery/token`, and the token must be refreshed after sign-in and sign-out, because the server rotates it with the session.
 - **Formatting:** `dotnet format` + `.editorconfig` with analyzers as errors. ESLint + Prettier on the frontend.
@@ -141,6 +142,18 @@ Implemented in feature 002. Files: `Core/Infrastructure/Images`, `Core/Infrastru
 - **Problem Details codes:** `avatar.unsupportedType` (415), `avatar.tooLarge` (413), `avatar.missing`, `avatar.corrupt`, `avatar.dimensionsTooLarge` (400), `avatar.busy` and `avatar.storageUnavailable` (503).
 - **Configuration:** `Avatars:MaxConcurrentProcessing`, `Avatars:ProcessingWaitSeconds`, `Avatars:OrphanCheckDelay` (see `deploy/.env.example`), and `Storage:ServiceUrl`, `Storage:AccessKey`, `Storage:SecretKey`, `Storage:Bucket`, which compose fills from `STORAGE_*`.
 
+## Administration, session revocation and audit (feature 003)
+Files: `Core/Identity/Domain/{Role,RoleAssignment}.cs`, `Core/Persistence/Auditing/*`, `Api/Identity/Shared/{SecurityStampCache,SecurityStampPrincipalValidator,BootstrapOptions,HttpAuditActor}.cs`, `Api/Identity/Admin/{ListUsers,GetUser,GetUserAvatar,ChangeUserRole}`, `Worker/Identity/Notifications/SendRoleChangedEmail`.
+
+- **Roles.** Two built-in roles, `Admin` and `User`, seeded by migration `SeedRoles` with fixed identifiers (`Roles.AdminId`, `Roles.UserId`). Each user has exactly one role: a promotion removes `User` and adds `Admin`, and a demotion does the reverse. `Roles.All` and `Roles.IsKnown` validate names.
+- **Role rules (`RoleAssignment`, pure functions).** A user cannot demote themselves (`identity.selfDemotion`, 409). The last Admin cannot be demoted (`identity.lastAdmin`, 409). An unknown role is `identity.invalidRole` (400). Setting the current role is a no-op.
+- **Keeping at least one Admin.** `PUT /api/identity/admin/users/{id}/role` runs in a transaction that first locks the Admin role row (`SELECT ... FOR UPDATE`), then counts the Admins and applies the rules above. Parallel demotions serialize on that lock. The change ends the target's sessions (see revocation below), and `RoleChangedNotification` is sent through the outbox.
+- **Bootstrap Admin.** `Bootstrap:AdminEmail` (env `Bootstrap__AdminEmail`, optional, validated as an email address) names the one address that becomes Admin. It applies only in the confirmation step of `CompleteRegistration`, after the email is confirmed, and only once: the rule (`RoleAssignment.ShouldBootstrapAdmin`) compares trimmed, case-insensitively, and does nothing when no address is configured, the email is unconfirmed, or the user is already an Admin. The grant runs without the Admin row lock, which is safe because a grant never lowers the Admin count. Recovery never grants Admin. Logs record the user id only.
+- **Admin group.** `/api/identity/admin` is mapped with `RequireAuthorization(AuthorizationPolicies.Admin)` and `RequireRateLimiting(RateLimitPolicies.Admin)` (60 requests per 60 s, per user). The authorization middleware runs before the endpoint antiforgery filter, so a non-admin unsafe request gets 403 before the token is checked.
+- **Listing.** `GET /users` takes `search`, `role`, `page` and `pageSize` (1 to 100). The search is a case-insensitive `ILIKE` on the display name and the email, with `%` and `_` escaped and bound as a parameter. Results are ordered by `created_at desc, id`. The detail (`GET /users/{id}`) adds passkey count and culture. The avatar of another user is served only to Admins, through the same streaming code as the owner's avatar.
+- **Immediate session revocation (ADR 0005).** Every authenticated request checks the cookie's security stamp against the current stamp, read through HybridCache (key `identity:stamp:{id}`, 60 s maximum lifetime, local cache disabled, Redis as the single source). Stamp changes call `StampChangedAsync` after the commit. If the cache fails, the database is read; if the database fails too, the request is rejected.
+- **Audit trail (ADR 0006).** A singleton SaveChanges interceptor writes `audit_entries` rows in the same SaveChanges and transaction, including Wolverine flushes. Changes are recorded as jsonb with old and new values. Secrets are masked, and passkey data is excluded by type. The table is append-only through triggers. Audited entities use client-generated keys, and the actor comes from a singleton `IAuditActor`. `AddCoreInfrastructure` must run before `AddNpgsqlDbContext`.
+
 ## Testing strategy
 - **Unit (`tests/AspireBoot.Tests/Unit`):** domain invariants and pure logic, with xUnit v3 and NSubstitute.
 - **Integration (`tests/AspireBoot.Tests/Integration`):** full HTTP slices and Worker handlers against real PostgreSQL, RabbitMQ, Redis, RustFS and Mailpit through Testcontainers, using `WebApplicationFactory` and Respawn to reset data.
@@ -160,7 +173,7 @@ Implemented in feature 002. Files: `Core/Infrastructure/Images`, `Core/Infrastru
   - Relying party: `Passkeys:ServerDomain` and `Passkeys:AllowedOrigins` pin the RP ID and the exact origins (`ValidateOrigin`). Resident keys are required.
   - Confirmation and recovery tokens are single use and last 2 hours. Completing a flow updates the security stamp, which ends the other sessions.
   - The last passkey of an account cannot be removed. The removal locks the account row, so parallel removals cannot both succeed.
-- **Sessions:** cookie `__Host-aspireboot`, HttpOnly, Secure, SameSite=Strict, 8 hours with sliding expiration. "Keep me signed in" is a persistent cookie only by explicit choice. The security stamp is checked every `Identity:SecurityStampValidationSeconds` (default 60).
+- **Sessions:** cookie `__Host-aspireboot`, HttpOnly, Secure, SameSite=Strict, 8 hours with sliding expiration. "Keep me signed in" is a persistent cookie only by explicit choice. Every request checks the security stamp against the cached current stamp, so recovery, passkey removal and role changes end the other sessions on their next request (ADR 0005).
 - Antiforgery (CSRF) with the `X-XSRF-TOKEN` header on every unsafe `/api` request, and role-based authorization policies (RBAC: Admin, User), enforced on the server. The fallback policy requires an authenticated user.
 - **Enumeration:** sign-up, resend and recovery return identical `202` responses. Sign-in failures return one generic `401`. Residual timing risk is accepted (ADR 0003).
 - **Rate limiting (ADR 0002):** named policies on every endpoint, partitioned by user or client IP, with only the Caddy network trusted for forwarded headers. In-memory counters are accepted for a single VPS.
@@ -169,7 +182,8 @@ Implemented in feature 002. Files: `Core/Infrastructure/Images`, `Core/Infrastru
   - `App__PublicBaseUrl`: base of the links in emails (`/confirm`, `/recover/complete`).
   - `Avatars__MaxConcurrentProcessing` (default 2, about 96 MB of peak memory per slot), `Avatars__ProcessingWaitSeconds` (default 10) and `Avatars__OrphanCheckDelay` (default 1 hour): avatar processing limits and the orphan check delay.
   - `Storage__ServiceUrl`, `Storage__AccessKey`, `Storage__SecretKey`, `Storage__Bucket`: the private RustFS bucket for avatars.
-  - `Identity__EmailCooldownSeconds` (default 60) and `Identity__SecurityStampValidationSeconds` (default 60).
+  - `Identity__EmailCooldownSeconds` (default 60).
+  - `Bootstrap__AdminEmail`: the address that becomes Admin when it confirms its email. Empty means no bootstrap Admin (compose fills it from `BOOTSTRAP_ADMIN_EMAIL`).
   - `RateLimiting__<policy>__PermitLimit` and `RateLimiting__<policy>__WindowSeconds`, with the defaults in `RateLimitingExtensions`.
   - `ReverseProxy__KnownNetworks__0`: the proxy network whose forwarded headers are trusted.
 - Input validation in every slice. EF parameterized queries only. Credential JSON is capped in size and passkey names are 1 to 50 characters.
@@ -187,4 +201,4 @@ Implemented in feature 002. Files: `Core/Infrastructure/Images`, `Core/Infrastru
 - **Optional:** managed cloud (Azure/AWS) by swapping container resources for managed services through Aspire.
 
 ## Decision records
-Significant decisions live in [`adr/`](adr/README.md): the initial stack and architecture (ADR 0000), runtime i18n (ADR 0001), rate limiting (ADR 0002), passwordless passkeys (ADR 0003) and avatar image processing with SkiaSharp (ADR 0004).
+Significant decisions live in [`adr/`](adr/README.md): the initial stack and architecture (ADR 0000), runtime i18n (ADR 0001), rate limiting (ADR 0002), passwordless passkeys (ADR 0003), avatar image processing with SkiaSharp (ADR 0004), immediate session revocation (ADR 0005) and the audit trail (ADR 0006).

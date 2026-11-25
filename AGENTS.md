@@ -37,6 +37,9 @@ These rules exist so that AI-generated code stays consistent. Follow them exactl
 8. **Frontend:** follow Angular's official AI rules (signals, standalone, `input()`/`output()`, native control flow, `inject()`, Signal Forms, lazy routes). No hard-coded user-facing text: translate with the `I18n` service (`| t` in templates, `I18n.t()` in TypeScript) and add each id to all three JSON catalogs in `public/i18n/` (pt-BR/en-US/es-ES; ADR 0001). WCAG 2.2 AA and responsive from 320px. Tailwind tokens only from `@theme`.
 9. **Performance:** async with `CancellationToken` everywhere, no N+1, no unbounded lists, HybridCache for hot reads, and no blocking calls.
 10. **Dependencies:** versions are pinned centrally (`Directory.Packages.props`, `package-lock.json`, image tags). Check official docs for the pinned version before using an API. Do not add a package when the framework already solves the problem.
+11. **Session revocation (ADR 0005):** every change to a security stamp calls `StampChangedAsync` after the transaction commits. Without that call, other sessions of the account stay valid for up to 60 s. Never check the stamp by interval or add an interval override.
+12. **Audit (ADR 0006):** auditing is automatic through the SaveChanges interceptor. Never write, update or delete `audit_entries` by hand. New entities need client-generated keys (no store-generated keys) and a classification in `AuditPolicy`, including new owned and complex types and any masked property.
+13. **Admin endpoints:** every endpoint under `/api/identity/admin` uses the `AuthorizationPolicies.Admin` policy and the `admin` rate-limit policy. Never check roles inline in an endpoint.
 
 ## Workflow rules
 - Follow the architecture and conventions in `docs/architecture.md`. Record new significant decisions as ADRs in `docs/adr/`.

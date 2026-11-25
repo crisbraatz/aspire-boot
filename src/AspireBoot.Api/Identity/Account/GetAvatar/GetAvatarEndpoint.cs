@@ -1,5 +1,6 @@
 using System.Security.Claims;
 
+using AspireBoot.Api.Identity.Shared;
 using AspireBoot.Api.Shared;
 using AspireBoot.Core.Identity.Domain;
 using AspireBoot.Core.Infrastructure.Storage;
@@ -8,7 +9,6 @@ using AspireBoot.Core.Persistence;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Net.Http.Headers;
 
 namespace AspireBoot.Api.Identity.Account.GetAvatar;
 
@@ -19,8 +19,6 @@ namespace AspireBoot.Api.Identity.Account.GetAvatar;
 /// </summary>
 internal static class GetAvatarEndpoint
 {
-    private const string CacheControl = "private, max-age=31536000, immutable";
-
     public static void Map(IEndpointRouteBuilder group) =>
         group.MapGet("/avatar/{version:int}", Handle)
             .WithName("GetAvatar")
@@ -48,23 +46,12 @@ internal static class GetAvatarEndpoint
             .Select(user => new { Key = EF.Property<string?>(user, "avatarKey"), user.AvatarVersion })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (row?.Key is null || row.AvatarVersion != version)
+        var served = await AvatarStreaming.ServeAsync(context, row?.Key, row?.AvatarVersion ?? 0, version, storage, cancellationToken);
+        return served.Result switch
         {
-            return TypedResults.NotFound();
-        }
-
-        var etag = $"\"v{version}\"";
-        context.Response.Headers[HeaderNames.CacheControl] = CacheControl;
-        context.Response.Headers[HeaderNames.ETag] = etag;
-
-        if (context.Request.Headers.IfNoneMatch.Contains(etag))
-        {
-            return TypedResults.StatusCode(StatusCodes.Status304NotModified);
-        }
-
-        var stream = await storage.OpenReadAsync(row.Key, cancellationToken);
-        return stream is null
-            ? TypedResults.NotFound()
-            : TypedResults.Stream(stream, "image/webp");
+            FileStreamHttpResult stream => stream,
+            StatusCodeHttpResult status => status,
+            _ => TypedResults.NotFound(),
+        };
     }
 }

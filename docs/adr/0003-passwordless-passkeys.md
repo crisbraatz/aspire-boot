@@ -1,6 +1,6 @@
 # ADR 0003: Passwordless accounts with passkeys on ASP.NET Core Identity
 
-- Status: accepted
+- Status: accepted (session revocation superseded by ADR 0005)
 - Date: 2026-11-25
 - Feature: 001 (passwordless account authentication with passkeys)
 
@@ -31,7 +31,7 @@ The template gives every product a secure account system. Passwords are the weak
 
 ### Sessions
 - The cookie is `__Host-aspireboot`: HttpOnly, Secure, SameSite=Strict, path `/`, 8 hours with sliding expiration.
-- `SecurityStampValidatorOptions.ValidationInterval` comes from `Identity:SecurityStampValidationSeconds` (default 60). A session that outlives a recovery or a passkey removal ends within this interval. The framework default of 30 minutes is too long for this.
+- **Superseded by ADR 0005:** the security stamp is checked on every authenticated request against a cached current stamp, not on an interval. A session that outlives a recovery or a passkey removal ends on its next request.
 
 ### Enumeration and abuse
 - Sign-up, resend confirmation and recovery return the same `202` body whether or not the email exists. Sign-up for an existing email sends nothing.

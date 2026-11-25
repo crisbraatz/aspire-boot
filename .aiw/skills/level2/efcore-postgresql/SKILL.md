@@ -55,6 +55,15 @@ fetched: 2026-11-25
 - **Production:** run the migration bundle as a one-shot compose job with a schema-owner credential before starting the app. The app's DB user has only DML rights. No `MigrateAsync()` on startup in production, and never `EnsureCreated`.
 - Dev: the Aspire migration resource / `MigrateAsync` on startup is allowed only in Development.
 
+## Auditing (ADR 0006)
+- `AuditSaveChangesInterceptor` (singleton, added in `AddCoreInfrastructure` through `ConfigureDbContext`) writes `audit_entries` rows in the same SaveChanges and transaction. Never write, update or delete `audit_entries` by hand.
+- `AddCoreInfrastructure` must run before `AddNpgsqlDbContext`, because pooled options read the interceptor when they are first built.
+- Audited entities use client-generated keys (Guid v7 or a composite natural key). Store-generated keys fail an architecture test.
+- New entity or owned/complex type: classify it in `AuditPolicy` (excluded or included) and list masked properties. The architecture test fails otherwise.
+- The append-only triggers (`audit_entries_no_update_delete`, `audit_entries_no_truncate`) come from migration `AddAuditEntries`. Their only bypass is a superuser `SET session_replication_role = replica`, used by the test reset.
+- `ExecuteUpdate`, `ExecuteDelete` and raw SQL are not tracked, so they are not audited. Use tracked changes for audited data.
+- `SELECT ... FOR UPDATE` locks (passkey removal, Admin role row) run inside the transaction, before the count.
+
 ## Testing
 - Integration tests use real PostgreSQL (Testcontainers), apply migrations once and reset with Respawn. Never use the InMemory provider.
 - A test asserts `HasPendingModelChanges()` is false.
@@ -64,3 +73,5 @@ fetched: 2026-11-25
 - Cartesian explosion from multiple collection Includes.
 - Unbounded queries in list endpoints.
 - `ExecuteUpdate` inside a Wolverine handler without an Eager transaction escapes the outbox.
+- Writing `audit_entries` by hand, or relying on `ExecuteUpdate` for an audited change (no audit row).
+- Registering the audit interceptor after `AddNpgsqlDbContext`, which leaves pooled contexts without it.

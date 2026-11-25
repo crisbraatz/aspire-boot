@@ -1,0 +1,114 @@
+<section aria-labelledby="user-detail-heading" class="mx-auto w-full max-w-2xl min-w-0 space-y-6">
+  <a
+    routerLink="/admin/users"
+    class="inline-flex min-h-11 items-center font-medium text-brand-700 underline underline-offset-4 hover:text-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-brand-100"
+  >
+    {{ 'admin.user.back' | t }}
+  </a>
+
+  @if (status(); as current) {
+    <p
+      role="status"
+      class="rounded-md border border-brand-100 bg-brand-50 p-3 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+    >
+      {{ text(current) }}
+    </p>
+  }
+
+  @if (notice(); as current) {
+    <p
+      role="alert"
+      class="rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100"
+    >
+      {{ text(current) }}
+    </p>
+  }
+
+  @if (loading()) {
+    <p class="text-slate-600 dark:text-slate-300" aria-live="polite">
+      {{ 'admin.user.loading' | t }}
+    </p>
+  } @else if (user(); as user) {
+    <div class="flex min-w-0 items-center gap-4">
+      <ab-avatar [name]="user.displayName" [url]="user.avatarUrl" size="lg" />
+      <div class="min-w-0 space-y-1">
+        <h1 id="user-detail-heading" class="break-words text-3xl font-bold tracking-tight">
+          {{ user.displayName }}
+        </h1>
+        <p class="break-all text-slate-600 dark:text-slate-300">{{ user.email }}</p>
+      </div>
+    </div>
+
+    <dl
+      class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-3 rounded-md border border-slate-300 p-4 text-sm dark:border-slate-600"
+    >
+      <dt class="text-slate-600 dark:text-slate-300">{{ 'admin.users.col.role' | t }}</dt>
+      <dd class="font-medium" data-field="role">{{ roleLabelId(user.role) | t }}</dd>
+      <dt class="text-slate-600 dark:text-slate-300">{{ 'admin.users.col.status' | t }}</dt>
+      <dd>{{ emailStatusId(user) | t }}</dd>
+      <dt class="text-slate-600 dark:text-slate-300">{{ 'admin.users.col.created' | t }}</dt>
+      <dd>{{ joinedOn(user) }}</dd>
+      <dt class="text-slate-600 dark:text-slate-300">{{ 'admin.user.passkeys' | t }}</dt>
+      <dd data-field="passkeys">{{ user.passkeyCount }}</dd>
+      <dt class="text-slate-600 dark:text-slate-300">{{ 'admin.user.culture' | t }}</dt>
+      <dd>{{ user.culture }}</dd>
+    </dl>
+
+    @if (canChangeRole()) {
+      <div>
+        <button
+          type="button"
+          data-action="change-role"
+          class="inline-flex min-h-11 items-center justify-center rounded-md bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+          [disabled]="busy()"
+          (click)="askChange()"
+        >
+          {{ changeLabelId() | t }}
+        </button>
+      </div>
+    } @else if (selfAdmin()) {
+      <p class="text-sm text-slate-600 dark:text-slate-300">{{ 'admin.user.selfAdmin' | t }}</p>
+    }
+  } @else {
+    <p class="text-slate-600 dark:text-slate-300">{{ 'admin.user.loading' | t }}</p>
+  }
+
+  <dialog
+    #confirmDialog
+    aria-labelledby="role-dialog-title"
+    aria-describedby="role-dialog-text"
+    class="w-[min(28rem,calc(100vw-2rem))] rounded-md border border-slate-300 bg-white p-6 text-slate-900 shadow-lg backdrop:bg-slate-900/50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+  >
+    @if (user(); as user) {
+      <form method="dialog" class="space-y-4">
+        <h2 id="role-dialog-title" class="text-xl font-semibold">
+          {{ dialogTitleId() | t: { name: user.displayName } }}
+        </h2>
+        <p id="role-dialog-text" class="text-sm">
+          {{ dialogTextId() | t: { name: user.displayName } }}
+        </p>
+        <div class="flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            autofocus
+            data-action="cancel-change"
+            class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-600 px-4 py-2 font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+            (click)="cancelChange()"
+          >
+            {{ 'admin.user.dialog.cancel' | t }}
+          </button>
+          <button
+            type="button"
+            data-action="confirm-change"
+            class="inline-flex min-h-11 items-center justify-center rounded-md bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            [disabled]="busy()"
+            [attr.aria-busy]="busy()"
+            (click)="confirmChange()"
+          >
+            {{ confirmLabelId() | t }}
+          </button>
+        </div>
+      </form>
+    }
+  </dialog>
+</section>

@@ -33,6 +33,7 @@ internal sealed partial class RemovePasskeyEndpoint
         ClaimsPrincipal principal,
         UserManager<User> users,
         SignInManager<User> signIn,
+        ISecurityStampCache stamps,
         IDbContextOutbox<AppDbContext> outbox,
         ILogger<RemovePasskeyEndpoint> logger,
         CancellationToken cancellationToken)
@@ -84,6 +85,8 @@ internal sealed partial class RemovePasskeyEndpoint
             user.Id, user.Email!, user.DisplayName.Value, user.PreferredCulture.Value, passkey.Name ?? string.Empty));
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken);
 
+        // Overwrites the cached stamp after the commit, so the other sessions are rejected on their next request.
+        await stamps.StampChangedAsync(user.Id);
         await signIn.RefreshSignInAsync(user);
 
         IdentityMetrics.RecordPasskeyRemoved();

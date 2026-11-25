@@ -11,6 +11,7 @@ const ANA = {
   email: 'ana@example.com',
   culture: 'en-US',
   avatarUrl: null,
+  roles: ['User'],
 };
 
 describe('AppShell header', () => {
@@ -37,6 +38,21 @@ describe('AppShell header', () => {
   function accountLink(): HTMLAnchorElement {
     return fixture.nativeElement.querySelector('a[href="/account"]') as HTMLAnchorElement;
   }
+
+  function adminLink(): HTMLAnchorElement | null {
+    return fixture.nativeElement.querySelector('a[href="/admin/users"]');
+  }
+
+  it('hides the Admin link for a non-admin', () => {
+    expect(adminLink()).toBeNull();
+  });
+
+  it('shows the Admin link once the session has the Admin role', () => {
+    TestBed.inject(Session).patchUser({ roles: ['Admin'] });
+    fixture.detectChanges();
+
+    expect(adminLink()?.getAttribute('href')).toBe('/admin/users');
+  });
 
   it('shows the initials and the display name in the account link', () => {
     expect(accountLink().textContent).toContain('Ana Lima');

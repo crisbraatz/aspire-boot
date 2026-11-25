@@ -30,6 +30,7 @@ x-app-env: &app-env
   Email__Password: ${EMAIL_PASSWORD}
   Email__FromAddress: ${EMAIL_FROM_ADDRESS}
   Email__FromName: ${EMAIL_FROM_NAME}
+  Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-}
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
 
 services:

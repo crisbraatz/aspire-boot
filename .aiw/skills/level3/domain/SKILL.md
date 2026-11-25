@@ -43,8 +43,13 @@ updated: 2026-11-25
 11. Os e-mails da conta usam o idioma preferido da pessoa. O idioma escolhido na tela de entrada vale para o cadastro e é salvo na conta. (fonte: feature 001)
 12. O usuário edita o próprio perfil e as próprias preferências. Mexer em outros usuários depende do papel. (fonte: entrevista)
 13. O usuário vê as próprias sessões ativas e pode encerrar uma específica, todas as outras ou a atual. (fonte: entrevista)
-14. Todo usuário novo recebe o papel **User**. **Admin** é concedido explicitamente. (fonte: suposição)
+14. Todo usuário novo recebe o papel **User**. **Admin** nunca é concedido por pedido de recuperação. Só o e-mail configurado no bootstrap vira Admin, na confirmação do próprio e-mail, uma única vez. (fonte: feature 003)
 15. Um Admin não pode remover o próprio papel de Admin. (fonte: suposição)
+25. Cada pessoa tem um único papel: **User** ou **Admin**. Promover é trocar User por Admin, e rebaixar é o inverso. (fonte: feature 003)
+26. Sempre existe pelo menos um Admin. O último Admin não pode ser rebaixado, mesmo com dois pedidos ao mesmo tempo. (fonte: feature 003)
+27. Mudar o papel de alguém encerra as sessões dessa pessoa. O novo papel vale no próximo login. (fonte: feature 003)
+28. Só o Admin lista, vê o detalhe e muda o papel de outros usuários. Nenhuma pessoa comum vê dados de outros. (fonte: feature 003)
+29. Toda alteração de dados da conta e do papel fica registrada na auditoria, com quem fez e quando. O registro não pode ser editado nem apagado pela aplicação. (fonte: feature 003)
 16. O nome de exibição tem de 2 a 100 caracteres, sem caracteres de controle. (fonte: scaffold)
 17. As telas existem em português, inglês e espanhol. O usuário escolhe o idioma, e a escolha é salva na conta quando ela está conectada. (fonte: entrevista, feature 001)
 18. O avatar aceita apenas JPEG, PNG ou WebP, de até 5 MB, com no máximo 8000 px por lado e 24 milhões de pixels. Um arquivo fora desses formatos é recusado, mesmo com extensão de imagem. (fonte: feature 002)
@@ -63,6 +68,8 @@ updated: 2026-11-25
 - Nenhum token de confirmação ou recuperação é usado mais de uma vez, nem depois de 2 horas.
 - Respostas de cadastro, reenvio e recuperação não revelam se um e-mail existe.
 - Permissões são sempre verificadas no servidor. A interface só esconde o que não é permitido.
+- Toda conta tem exatamente um papel, e sempre há pelo menos um Admin.
+- Um papel alterado não vale em sessões antigas: elas são encerradas na próxima requisição.
 - Passkeys, tokens e dados pessoais nunca aparecem em logs, métricas ou URLs.
 
 ## Fluxos
@@ -97,7 +104,18 @@ updated: 2026-11-25
 4. A imagem nova passa a valer com uma versão nova. A imagem anterior é apagada em segundo plano.
 5. Remover o avatar volta a mostrar as iniciais do nome. A remoção pode ser repetida sem erro.
 
-### Gestão de usuários (conforme o papel)
-1. Listar usuários (com paginação e busca).
-2. Ver o detalhe de um usuário.
-3. Editar ou excluir, se o papel permitir.
+### Bootstrap do Admin
+1. O operador configura o e-mail do primeiro Admin (variável `BOOTSTRAP_ADMIN_EMAIL`). Sem configuração, não há Admin automático.
+2. Quando esse e-mail confirma a conta, ela vira Admin. Entrar de novo ou recuperar a conta não concede o papel.
+3. Se a conta já for Admin, nada muda.
+
+### Gestão de usuários (Admin)
+1. Listar usuários, com busca por nome ou e-mail, filtro por papel e paginação.
+2. Ver o detalhe de um usuário (passkeys, idioma, papel).
+3. Mudar o papel entre Admin e User, com confirmação. Não é possível rebaixar a si mesmo nem o último Admin.
+4. A pessoa afetada recebe um e-mail avisando a mudança de papel, no idioma preferido dela.
+
+### Auditoria
+1. Cada alteração relevante gera um registro com a pessoa responsável, a data e os valores antes e depois.
+2. Senhas, tokens e chaves nunca aparecem no registro. Dados de passkey também não.
+3. O registro não é apagado nem editado pela aplicação.

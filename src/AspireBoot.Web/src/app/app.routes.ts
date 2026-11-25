@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { adminGuard } from './identity/shared/admin.guard';
 import { authGuard } from './identity/shared/auth.guard';
 
 export const routes: Routes = [
@@ -48,6 +49,19 @@ export const routes: Routes = [
     canMatch: [authGuard],
     loadComponent: () =>
       import('./identity/account/passkeys/passkeys.page').then((m) => m.PasskeysPage),
+  },
+  {
+    path: 'admin/users',
+    title: 'admin.users.title',
+    canMatch: [authGuard, adminGuard],
+    loadComponent: () => import('./identity/admin/users/users.page').then((m) => m.UsersPage),
+  },
+  {
+    path: 'admin/users/:id',
+    title: 'admin.user.title',
+    canMatch: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./identity/admin/user-detail/user-detail.page').then((m) => m.UserDetailPage),
   },
   {
     path: '**',

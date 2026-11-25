@@ -1,3 +1,4 @@
+using AspireBoot.Core.Identity.Domain;
 using AspireBoot.Core.Infrastructure.Email.Templates;
 
 namespace AspireBoot.Tests.Unit.Infrastructure.Email;
@@ -123,5 +124,31 @@ public sealed class IdentityEmailTemplatesTests
 
         Assert.Throws<ArgumentException>(() =>
             EmailTemplateCatalog.Render(EmailTemplateKind.ConfirmationEmail, "en-US", model));
+    }
+
+    [Theory]
+    [InlineData("pt-BR", "Administrador")]
+    [InlineData("en-US", "Admin")]
+    [InlineData("es-ES", "Administrador")]
+    public void Render_RoleChanged_IncludesTheLocalizedRoleAndNoLink(string culture, string expectedRole)
+    {
+        var model = new EmailTemplateModel("Ana", RoleName: "Admin");
+
+        var email = EmailTemplateCatalog.Render(EmailTemplateKind.RoleChanged, culture, model);
+
+        Assert.Contains(expectedRole, email.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("href", email.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Render_RoleChanged_HasADistinctSubjectPerCulture()
+    {
+        var model = new EmailTemplateModel("Ana", RoleName: "User");
+
+        var subjects = UiCulture.Supported.Select(culture => culture.Value)
+            .Select(culture => EmailTemplateCatalog.Render(EmailTemplateKind.RoleChanged, culture, model).Subject)
+            .Distinct(StringComparer.Ordinal);
+
+        Assert.Equal(3, subjects.Count());
     }
 }

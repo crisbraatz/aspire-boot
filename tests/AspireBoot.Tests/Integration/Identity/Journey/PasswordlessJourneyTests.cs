@@ -6,9 +6,6 @@ using AspireBoot.Core.Persistence;
 using AspireBoot.Tests.Integration.Infrastructure;
 using AspireBoot.Tests.Support.WebAuthn;
 
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -38,7 +35,7 @@ public sealed class PasswordlessJourneyTests(InfrastructureFixture infrastructur
     private const string EsPasskeyRemovedSubject = "Se eliminó una clave de acceso de tu cuenta de AspireBoot";
     private const string EsRecoverySubject = "Recupera el acceso a tu cuenta de AspireBoot";
 
-    private readonly StampValidatingApiFactory _api = new(infrastructure);
+    private readonly AspireBootApiFactory _api = new(infrastructure);
     private readonly AspireBootWorkerFactory _worker = new(infrastructure);
 
     [Fact]
@@ -258,19 +255,4 @@ public sealed class PasswordlessJourneyTests(InfrastructureFixture infrastructur
     }
 
     private sealed record ProfileBody(Guid Id, string DisplayName, string Email, string Culture);
-
-    /// <summary>
-    /// Validates the security stamp on every request, so a stamp change ends a session at once. The journey needs it
-    /// to prove that the session from before the recovery is over. Passkey removal refreshes the current sign-in, so it
-    /// keeps the session alive.
-    /// </summary>
-    private sealed class StampValidatingApiFactory(InfrastructureFixture infrastructure) : AspireBootApiFactory(infrastructure)
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-            builder.ConfigureTestServices(services =>
-                services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero));
-        }
-    }
 }

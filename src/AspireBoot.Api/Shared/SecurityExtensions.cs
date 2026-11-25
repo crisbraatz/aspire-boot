@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using AspireBoot.Api.Identity.Shared;
 using AspireBoot.Core.Identity.Domain;
 using AspireBoot.Core.Persistence;
+using AspireBoot.Core.Persistence.Auditing;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -50,15 +51,26 @@ internal static class SecurityExtensions
                 identityPasskeys.ValidateOrigin = context => ValueTask.FromResult(allowedOrigins.Contains(context.Origin));
             });
 
+        // Replaces the Core default (system). Singleton on purpose: it reads the accessor per call.
+        services.AddHttpContextAccessor();
+        services.AddSingleton<HttpAuditActor>();
+        services.AddSingleton<IAuditActor>(provider => provider.GetRequiredService<HttpAuditActor>());
+        services.AddSingleton<IAuditActorOverride>(provider => provider.GetRequiredService<HttpAuditActor>());
+
         services.AddOptions<IdentityFlowOptions>()
             .Bind(configuration.GetSection(IdentityFlowOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // Configurable instead of the 30-minute default, so a passkey removal or recovery ends other sessions within the configured interval.
-        services.AddOptions<SecurityStampValidatorOptions>()
-            .Configure<IOptions<IdentityFlowOptions>>((stamp, flow) =>
-                stamp.ValidationInterval = TimeSpan.FromSeconds(flow.Value.SecurityStampValidationSeconds));
+        services.AddOptions<BootstrapOptions>()
+            .Bind(configuration.GetSection(BootstrapOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Immediate revocation (ADR 0005): every request compares the cookie stamp with the cached current stamp.
+        services.AddScoped<ISecurityStampSource, DatabaseSecurityStampSource>();
+        services.AddScoped<ISecurityStampCache, SecurityStampCache>();
+        services.AddScoped<SecurityStampPrincipalValidator>();
 
         services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
         services.ConfigureApplicationCookie(options =>
@@ -70,6 +82,8 @@ internal static class SecurityExtensions
             options.Cookie.Path = "/";
             options.ExpireTimeSpan = TimeSpan.FromHours(8);
             options.SlidingExpiration = true;
+            // Replaces Identity's interval-based SecurityStampValidator.
+            options.Events.OnValidatePrincipal = SecurityStampPrincipalValidator.OnValidatePrincipal;
             options.Events.OnRedirectToLogin = context =>
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -84,7 +98,8 @@ internal static class SecurityExtensions
 
         // Secure by default: any endpoint without explicit metadata requires an authenticated user.
         services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+            .AddPolicy(AuthorizationPolicies.Admin, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Admin));
 
         services.AddAntiforgery(options =>
         {

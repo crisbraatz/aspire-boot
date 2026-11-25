@@ -59,6 +59,14 @@ public static class IdentityFlow
         return Guid.Parse(userId);
     }
 
+    /// <summary>Extracts the user id and token from a sign-up confirmation email.</summary>
+    public static (string UserId, string Token) ParseConfirmationLink(string text)
+    {
+        var match = ConfirmationLink.Match(text);
+        Assert.True(match.Success, "The confirmation email must carry the confirmation link.");
+        return (match.Groups["user"].Value, match.Groups["token"].Value);
+    }
+
     /// <summary>Uri of one passkey under /api/identity/account/passkeys.</summary>
     public static Uri PasskeyUri(string id) => new($"/api/identity/account/passkeys/{id}", UriKind.Relative);
 

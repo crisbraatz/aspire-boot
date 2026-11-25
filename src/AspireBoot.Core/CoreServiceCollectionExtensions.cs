@@ -5,12 +5,15 @@ using AspireBoot.Core.Infrastructure.Email;
 using AspireBoot.Core.Infrastructure.Images;
 using AspireBoot.Core.Infrastructure.Storage;
 using AspireBoot.Core.Persistence;
+using AspireBoot.Core.Persistence.Auditing;
 
 using JasperFx.CommandLine.Descriptions;
 
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace AspireBoot.Core;
@@ -26,6 +29,13 @@ public static class CoreServiceCollectionExtensions
 
         // The EF model (and its passkey table) is cached per process, so every host must map the same Identity schema.
         services.Configure<IdentityOptions>(options => options.Stores.SchemaVersion = PersistenceExtensions.IdentitySchemaVersion);
+
+        // Audit trail. Aspire pools AppDbContext, so the interceptor and the actor are singletons resolved from the root
+        // provider. Hosts must call this BEFORE AddNpgsqlDbContext so the ConfigureDbContext callback is part of the pool options.
+        services.TryAddSingleton<IAuditActor, SystemAuditActor>();
+        services.AddSingleton<AuditSaveChangesInterceptor>();
+        services.ConfigureDbContext<AppDbContext>((provider, options) =>
+            options.AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));
 
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName))

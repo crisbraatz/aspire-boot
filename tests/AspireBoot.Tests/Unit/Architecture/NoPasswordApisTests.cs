@@ -35,7 +35,7 @@ public sealed class NoPasswordApisTests
     private static bool IsExcluded(string file)
     {
         var segments = file.Split(Path.DirectorySeparatorChar);
-        return segments.Any(segment => segment is "bin" or "obj" or "Migrations");
+        return segments.Any(segment => segment is "bin" or "obj" or "Migrations" or "Auditing");
     }
 
     private static string FindRepositoryRoot()

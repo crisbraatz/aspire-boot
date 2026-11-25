@@ -1,4 +1,5 @@
 using AspireBoot.Core.Identity.Domain;
+using AspireBoot.Core.Persistence.Auditing;
 
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -12,6 +13,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public const string ConnectionName = "aspireboot";
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

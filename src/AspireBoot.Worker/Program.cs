@@ -20,13 +20,16 @@ var builder = WebApplication.CreateSlimBuilder(args);
 
 builder.AddServiceDefaults();
 
+// Must precede AddNpgsqlDbContext: the audit interceptor is added through ConfigureDbContext, which the pooled
+// context options read when they are first built.
+builder.Services.AddCoreInfrastructure(builder.Configuration);
+
 builder.AddNpgsqlDbContext<AppDbContext>(
     AppDbContext.ConnectionName,
     settings => settings.DisableRetry = true,
     options => options.UseAspireBootNpgsql(builder.Configuration.GetConnectionString(AppDbContext.ConnectionName)));
 builder.AddRedisDistributedCache("redis");
 
-builder.Services.AddCoreInfrastructure(builder.Configuration);
 builder.Services.AddDataProtection()
     .SetApplicationName("AspireBoot")
     .PersistKeysToDbContext<AppDbContext>();

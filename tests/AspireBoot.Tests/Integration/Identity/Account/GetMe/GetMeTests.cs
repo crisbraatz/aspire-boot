@@ -50,6 +50,25 @@ public sealed class GetMeTests(InfrastructureFixture infrastructure) : IAsyncLif
         Assert.Equal("me-profile@aspireboot.test", me.Email);
         Assert.Equal("pt-BR", me.Culture);
         Assert.Null(me.AvatarUrl);
+        Assert.Equal(["User"], me.Roles);
+    }
+
+    [Fact]
+    public async Task BootstrappedAdmin_ReturnsAdminRole()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await infrastructure.ResetDatabaseAsync();
+        await using var bootstrapped = new AspireBootApiFactory(infrastructure, new Dictionary<string, string?> { ["Bootstrap:AdminEmail"] = "me-admin@aspireboot.test" });
+        using var client = new IdentityClient(bootstrapped);
+        using var authenticator = new SoftwareAuthenticator();
+        await IdentityFlow.RegisterAsync(infrastructure, client, authenticator, "me-admin@aspireboot.test", ct);
+
+        using var response = await client.Http.GetAsync(MeUri, ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var me = await response.Content.ReadFromJsonAsync<MeBody>(ct);
+        Assert.NotNull(me);
+        Assert.Equal(["Admin"], me.Roles);
     }
 
     [Fact]
@@ -106,5 +125,5 @@ public sealed class GetMeTests(InfrastructureFixture infrastructure) : IAsyncLif
         await _api.DisposeAsync();
     }
 
-    private sealed record MeBody(Guid Id, string DisplayName, string Email, string Culture, string? AvatarUrl);
+    private sealed record MeBody(Guid Id, string DisplayName, string Email, string Culture, string? AvatarUrl, string[] Roles);
 }

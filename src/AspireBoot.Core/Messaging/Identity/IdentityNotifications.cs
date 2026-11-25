@@ -11,3 +11,6 @@ public sealed record PasskeyAddedNotification(Guid UserId, string Email, string 
 
 /// <summary>Tells the account owner that a passkey was removed.</summary>
 public sealed record PasskeyRemovedNotification(Guid UserId, string Email, string DisplayName, string Culture, string PasskeyName);
+
+/// <summary>Tells the account owner that an administrator changed their role. NewRole is a role name (Admin or User).</summary>
+public sealed record RoleChangedNotification(Guid UserId, string Email, string DisplayName, string Culture, string NewRole);

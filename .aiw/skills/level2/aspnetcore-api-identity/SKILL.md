@@ -50,7 +50,8 @@ fetched: 2026-11-25
 - Passkey management: `UserManager.GetPasskeysAsync`, `GetPasskeyAsync`, `RemovePasskeyAsync`, `FindByPasskeyIdAsync`. `UserPasskeyInfo` has `CreatedAt` but no last-used timestamp.
 - Credential JSON is capped at 16 KB, and passkey names are 1 to 50 characters.
 - Cookie: `__Host-` prefix, `HttpOnly`, `Secure` (Always), `SameSite=Strict`, sliding expiration plus an 8 h lifetime, and persistence only by explicit choice. API endpoints return 401/403, never redirects.
-- Security stamp: `SecurityStampValidatorOptions.ValidationInterval` comes from `Identity:SecurityStampValidationSeconds` (default 60). Recovery and passkey removal call `UpdateSecurityStampAsync`, which ends other sessions within that interval.
+- Security stamp (ADR 0005): every authenticated request is checked in the cookie `OnValidatePrincipal` handler (`SecurityStampPrincipalValidator`). It compares the cookie stamp with the current stamp from `ISecurityStampCache` (HybridCache, key `identity:stamp:{id}`, 60 s maximum lifetime, `DisableLocalCache`, no tags). Every slice that changes a stamp calls `UpdateSecurityStampAsync` in its transaction, then `StampChangedAsync` after the commit. Never skip `StampChangedAsync`, and never add an interval check.
+- Cache failure falls back to the database; database failure rejects the principal. Never fail open.
 - Generic responses for sign-up, resend and recovery (`202` with the same body, no account enumeration) and one generic `401` for sign-in failures. Keep the timing close, and note the accepted residual risk in ADR 0003.
 - Confirmation and recovery tokens are Identity email tokens and a custom `PasskeyRecoveryTokenProvider`. Both last 2 hours (`DataProtectionTokenProviderOptions.TokenLifespan`). They are single use because completing a flow updates the security stamp. Links point to the SPA, which posts the token to the API in the body. Tokens are never logged.
 - Atomic flows: a change that saves a passkey and confirms the email runs inside one `Database.BeginTransactionAsync`. Removing a passkey locks the account row with `SELECT ... FOR UPDATE` before counting, so the last passkey cannot be removed by two parallel requests.
@@ -59,6 +60,10 @@ fetched: 2026-11-25
 - **Fallback policy = authenticated user** (`SetFallbackPolicy`), so new endpoints are secure by default. Opt out explicitly with `.AllowAnonymous()`.
 - Named policies only (`Policies.ManageUsers`, `Policies.ViewUsers`) built from roles/permissions. No role strings scattered in endpoints.
 - Resource-based checks (for example "edit own profile OR admin") use an `IAuthorizationHandler`. Never trust IDs from the client to imply ownership.
+- Admin (feature 003): `AuthorizationPolicies.Admin` requires the Admin role. `/api/identity/admin` maps the whole group with `RequireAuthorization(Admin)` and `RateLimitPolicies.Admin` (60 per 60 s, per user). The authorization middleware runs before the endpoint antiforgery filter, so a non-admin unsafe request gets 403 first.
+- Each user has one role (`User` by default). Role changes go through `RoleAssignment` (`identity.selfDemotion`, `identity.lastAdmin`, `identity.invalidRole`) under the Admin row lock. Never change a role outside that slice.
+- Bootstrap: `Bootstrap:AdminEmail` (`Bootstrap__AdminEmail`) grants Admin on confirmation only, through `RoleAssignment.ShouldBootstrapAdmin`. Recovery never grants Admin.
+- Admin listing: `search` uses a parameterized `ILIKE` with `%` and `_` escaped, `pageSize` 1 to 100, and no unbounded lists.
 
 ## Antiforgery (SPA, cookie auth)
 - `AddAntiforgery(o => { o.HeaderName = "X-XSRF-TOKEN"; o.Cookie.SecurePolicy = Always; })` + `app.UseAntiforgery()` after auth.

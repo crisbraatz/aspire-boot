@@ -6,9 +6,6 @@ using AspireBoot.Core.Identity.Domain;
 using AspireBoot.Tests.Integration.Infrastructure;
 using AspireBoot.Tests.Support.WebAuthn;
 
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AspireBoot.Tests.Integration.Identity.Auth.Recovery;
@@ -22,7 +19,7 @@ public sealed class RecoveryTests(InfrastructureFixture infrastructure) : IAsync
     private static readonly Uri RegistrationUri = new("/api/identity/auth/registration", UriKind.Relative);
     private static readonly Uri MeUri = new("/api/identity/account/me", UriKind.Relative);
 
-    private readonly StampValidatingApiFactory _api = new(infrastructure);
+    private readonly AspireBootApiFactory _api = new(infrastructure);
     private readonly AspireBootWorkerFactory _worker = new(infrastructure);
 
     [Fact]
@@ -172,20 +169,6 @@ public sealed class RecoveryTests(InfrastructureFixture infrastructure) : IAsync
             credential = JsonDocument.Parse(authenticator.CreateAttestation(creationOptions)).RootElement,
             name,
         }), ct);
-    }
-
-    /// <summary>
-    /// Validates the security stamp on every request, so a stamp change ends a session at once. Only recovery needs this:
-    /// the shared factory keeps the production interval, because passkey removal also changes the stamp.
-    /// </summary>
-    private sealed class StampValidatingApiFactory(InfrastructureFixture infrastructure) : AspireBootApiFactory(infrastructure)
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-            builder.ConfigureTestServices(services =>
-                services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero));
-        }
     }
 
     public ValueTask InitializeAsync()

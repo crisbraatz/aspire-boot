@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AspireBoot.Api.Identity.Account.GetMe;
 
-public sealed record MeResponse(Guid Id, string DisplayName, string Email, string Culture, string? AvatarUrl);
+public sealed record MeResponse(Guid Id, string DisplayName, string Email, string Culture, string? AvatarUrl, string[] Roles);
 
 /// <summary>Returns the signed-in user's own profile. Read-only, no tracking, one row.</summary>
 internal static class GetMeEndpoint
@@ -32,6 +32,9 @@ internal static class GetMeEndpoint
             return TypedResults.Unauthorized();
         }
 
+        // Roles come from the signed-in principal (the cookie carries them), so no extra query runs.
+        var roles = principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value).Order(StringComparer.Ordinal).ToArray();
+
         var row = await db.Users
             .AsNoTracking()
             .Where(user => user.Id == userId)
@@ -40,6 +43,6 @@ internal static class GetMeEndpoint
 
         return row is null
             ? TypedResults.Unauthorized()
-            : TypedResults.Ok(new MeResponse(row.Id, row.DisplayName.Value, row.Email ?? string.Empty, row.PreferredCulture.Value, row.AvatarKey is null ? null : $"/api/identity/account/avatar/{row.AvatarVersion}"));
+            : TypedResults.Ok(new MeResponse(row.Id, row.DisplayName.Value, row.Email ?? string.Empty, row.PreferredCulture.Value, row.AvatarKey is null ? null : $"/api/identity/account/avatar/{row.AvatarVersion}", roles));
     }
 }

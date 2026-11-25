@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace AspireBoot.Api.Identity.Auth.CompleteRegistration;
 
@@ -39,6 +40,9 @@ internal sealed partial class CompleteRegistrationEndpoint
         AppDbContext db,
         UserManager<User> users,
         SignInManager<User> signIn,
+        ISecurityStampCache stamps,
+        IAuditActorOverride auditActor,
+        IOptions<BootstrapOptions> bootstrap,
         ILogger<CompleteRegistrationEndpoint> logger,
         CancellationToken cancellationToken)
     {
@@ -97,6 +101,9 @@ internal sealed partial class CompleteRegistrationEndpoint
             return IdentityLinkTokens.PasskeyFailed();
         }
 
+        // The caller is anonymous: the audit rows of this flow name the owner of the link as the actor.
+        using var actingAs = auditActor.ActAs(user.Id);
+
         var passkey = attestation.Passkey;
         passkey.Name = name;
 
@@ -117,11 +124,37 @@ internal sealed partial class CompleteRegistrationEndpoint
                 LinkRejected(logger);
                 return IdentityLinkTokens.InvalidLink();
             }
+
+            // Confirm purpose only: a recovery never grants Admin. Roles are seeded, so no lazy creation.
+            var alreadyAdmin = await users.IsInRoleAsync(user, Roles.Admin);
+            if (RoleAssignment.ShouldBootstrapAdmin(bootstrap.Value.AdminEmail, user.Email ?? string.Empty, user.EmailConfirmed, alreadyAdmin))
+            {
+                var granted = await users.AddToRoleAsync(user, Roles.Admin);
+                if (!granted.Succeeded)
+                {
+                    return OperationFailed(logger, user.Id, "grant-admin", granted);
+                }
+
+                var demoted = await users.RemoveFromRoleAsync(user, Roles.User);
+                if (!demoted.Succeeded)
+                {
+                    return OperationFailed(logger, user.Id, "remove-user-role", demoted);
+                }
+
+                IdentityMetrics.RecordAdminBootstrapped();
+                AdminBootstrapped(logger, user.Id);
+            }
         }
 
         // Invalidates the link token (single use) and any other session of the account.
-        await users.UpdateSecurityStampAsync(user);
+        var stamped = await users.UpdateSecurityStampAsync(user);
+        if (!stamped.Succeeded)
+        {
+            return OperationFailed(logger, user.Id, "update-stamp", stamped);
+        }
+
         await transaction.CommitAsync(cancellationToken);
+        await stamps.StampChangedAsync(user.Id);
 
         await signIn.SignInAsync(user, isPersistent: false);
 
@@ -139,11 +172,24 @@ internal sealed partial class CompleteRegistrationEndpoint
         return TypedResults.NoContent();
     }
 
+    // Returning before the commit disposes the transaction, which rolls back the passkey, the confirmation and the roles.
+    private static ProblemHttpResult OperationFailed(ILogger logger, Guid userId, string operation, IdentityResult result)
+    {
+        OperationFailedLog(logger, userId, operation, IdentityOperationFailure.Codes(result));
+        return IdentityOperationFailure.Problem();
+    }
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "Passkey registration for user {UserId} failed at {Operation}: {Codes}.")]
+    private static partial void OperationFailedLog(ILogger logger, Guid userId, string operation, string codes);
+
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "First passkey registered for user {UserId}.")]
     private static partial void RegistrationCompleted(ILogger logger, Guid userId);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Passkey registration refused: the link is invalid or expired.")]
     private static partial void LinkRejected(ILogger logger);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Warning, Message = "Admin granted to user {UserId} by the bootstrap email.")]
+    private static partial void AdminBootstrapped(ILogger logger, Guid userId);
 
     [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "Passkey registration refused: the credential could not be verified.")]
     private static partial void PasskeyRejected(ILogger logger);

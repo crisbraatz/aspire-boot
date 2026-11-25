@@ -65,12 +65,21 @@ describe('IdentityApi', () => {
 
     const request = httpTesting.expectOne('/api/identity/account/me');
     expect(request.request.method).toBe('GET');
-    request.flush({ id: 'u1', displayName: 'Ana', email: 'ana@example.com', culture: 'en-US' });
+    request.flush({
+      id: 'u1',
+      displayName: 'Ana',
+      email: 'ana@example.com',
+      culture: 'en-US',
+      avatarUrl: null,
+      roles: ['Admin'],
+    });
     expect(await done).toEqual({
       id: 'u1',
       displayName: 'Ana',
       email: 'ana@example.com',
       culture: 'en-US',
+      avatarUrl: null,
+      roles: ['Admin'],
     });
   });
 

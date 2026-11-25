@@ -13,6 +13,8 @@ export interface CurrentUser {
   culture: Culture;
   /** Versioned avatar URL, or null when the user has no avatar. */
   avatarUrl: string | null;
+  /** Built-in role names, for example 'User' or 'Admin'. The API still enforces authorization. */
+  roles: string[];
 }
 
 export interface AvatarUploadResult {

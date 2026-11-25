@@ -9,10 +9,11 @@ public enum EmailTemplateKind
     RecoveryEmail,
     PasskeyAdded,
     PasskeyRemoved,
+    RoleChanged,
 }
 
 /// <summary>Values interpolated into a template. Link is required for the kinds that carry one.</summary>
-public sealed record EmailTemplateModel(string DisplayName, string? Link = null, string? PasskeyName = null);
+public sealed record EmailTemplateModel(string DisplayName, string? Link = null, string? PasskeyName = null, string? RoleName = null);
 
 /// <summary>A rendered email. Subject and text are plain; the HTML body has every user value encoded.</summary>
 public sealed record RenderedEmail(string Subject, string Text, string Html);

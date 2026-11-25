@@ -6,7 +6,15 @@ import { problemInterceptor } from '../../core/http/problem.interceptor';
 import { Session } from './session';
 
 const STORAGE_KEY = 'aspireboot.culture';
-const ANA = { id: 'u1', displayName: 'Ana', email: 'ana@example.com', culture: 'en-US' };
+const ANA = {
+  id: 'u1',
+  displayName: 'Ana',
+  email: 'ana@example.com',
+  culture: 'en-US',
+  avatarUrl: null,
+  roles: ['User'],
+};
+const ADMIN = { ...ANA, id: 'u2', roles: ['Admin'] };
 
 describe('Session', () => {
   let session: Session;
@@ -45,6 +53,26 @@ describe('Session', () => {
     expect(session.currentUser()).toEqual(ANA);
     expect(session.isSignedIn()).toBe(true);
     expect(session.isLoaded()).toBe(true);
+  });
+
+  it('is not an admin while anonymous', () => {
+    expect(session.isAdmin()).toBe(false);
+  });
+
+  it('is not an admin when the user has only the User role', async () => {
+    const done = session.refresh();
+    httpTesting.expectOne('/api/identity/account/me').flush(ANA);
+    await done;
+
+    expect(session.isAdmin()).toBe(false);
+  });
+
+  it('is an admin when the user has the Admin role', async () => {
+    const done = session.refresh();
+    httpTesting.expectOne('/api/identity/account/me').flush(ADMIN);
+    await done;
+
+    expect(session.isAdmin()).toBe(true);
   });
 
   it('becomes anonymous when the API answers 401', async () => {

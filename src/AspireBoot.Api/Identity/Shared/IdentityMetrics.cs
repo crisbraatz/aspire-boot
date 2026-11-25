@@ -18,6 +18,9 @@ internal static class IdentityMetrics
     private static readonly Counter<long> EmailConfirmations = Meter.CreateCounter<long>(
         "aspireboot.identity.email_confirmations", "{confirmation}", "Email addresses confirmed through a link.");
 
+    private static readonly Counter<long> AdminBootstraps = Meter.CreateCounter<long>(
+        "aspireboot.identity.admin_bootstrapped", "{account}", "Accounts granted Admin by the bootstrap email on confirmation.");
+
     private static readonly Counter<long> SignIns = Meter.CreateCounter<long>(
         "aspireboot.identity.sign_ins", "{attempt}", "Passkey sign-in attempts, tagged by outcome.");
 
@@ -39,12 +42,17 @@ internal static class IdentityMetrics
     private static readonly Counter<long> AvatarRemovals = Meter.CreateCounter<long>(
         "aspireboot.identity.avatar.removals", "{avatar}", "Avatars removed.");
 
+    private static readonly Counter<long> RolesChanged = Meter.CreateCounter<long>(
+        "aspireboot.identity.roles_changed", "{change}", "Role changes made by administrators, tagged by the new role.");
+
     private static readonly Counter<long> RateLimited = Meter.CreateCounter<long>(
         "aspireboot.identity.rate_limited", "{request}", "Requests rejected with 429, tagged by rate-limit policy.");
 
     public static void RecordSignUp() => SignUps.Add(1);
 
     public static void RecordEmailConfirmation() => EmailConfirmations.Add(1);
+
+    public static void RecordAdminBootstrapped() => AdminBootstraps.Add(1);
 
     public static void RecordSignIn(bool success) =>
         SignIns.Add(1, new KeyValuePair<string, object?>("outcome", success ? "success" : "failure"));
@@ -62,6 +70,10 @@ internal static class IdentityMetrics
         AvatarUploads.Add(1, new KeyValuePair<string, object?>("outcome", outcome));
 
     public static void RecordAvatarRemoval() => AvatarRemovals.Add(1);
+
+    /// <param name="role">The new role name (Admin or User): a fixed, low-cardinality set.</param>
+    public static void RecordRoleChanged(string role) =>
+        RolesChanged.Add(1, new KeyValuePair<string, object?>("role", role));
 
     public static void RecordRateLimited(string policy) =>
         RateLimited.Add(1, new KeyValuePair<string, object?>("policy", policy));

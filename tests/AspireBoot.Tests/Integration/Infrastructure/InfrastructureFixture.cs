@@ -111,7 +111,8 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         {
             DbAdapter = DbAdapter.Postgres,
             SchemasToInclude = ["public"],
-            TablesToIgnore = ["__ef_migrations_history"],
+            // AspNetRoles holds the seeded built-in roles (migration SeedRoles); resetting it would remove them.
+            TablesToIgnore = ["__ef_migrations_history", "AspNetRoles"],
         });
     }
 
@@ -120,6 +121,14 @@ public sealed class InfrastructureFixture : IAsyncLifetime
     {
         await using var connection = new NpgsqlConnection(PostgresConnectionString);
         await connection.OpenAsync();
+
+        // audit_entries is append-only by trigger. replica skips triggers for this session only (the container user is a
+        // superuser); it is the single bypass, reserved for resetting test data.
+        await using (var command = new NpgsqlCommand("SET session_replication_role = replica", connection))
+        {
+            await command.ExecuteNonQueryAsync();
+        }
+
         await _respawner!.ResetAsync(connection);
         await Mailpit.DeleteAllAsync(CancellationToken.None);
     }

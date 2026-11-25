@@ -1,0 +1,163 @@
+<section aria-labelledby="users-heading" class="mx-auto w-full max-w-5xl min-w-0 space-y-6">
+  <div class="space-y-2">
+    <h1 id="users-heading" class="text-3xl font-bold tracking-tight">
+      {{ 'admin.users.heading' | t }}
+    </h1>
+    <p class="text-slate-600 dark:text-slate-300">{{ 'admin.users.lead' | t }}</p>
+  </div>
+
+  <form
+    role="search"
+    class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]"
+    (submit)="$event.preventDefault()"
+  >
+    <div class="min-w-0 space-y-1">
+      <label for="user-search" class="block text-sm font-medium">
+        {{ 'admin.users.search.label' | t }}
+      </label>
+      <input
+        id="user-search"
+        type="search"
+        autocomplete="off"
+        class="block min-h-11 w-full rounded-md border border-slate-600 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-100"
+        (input)="onSearch($event)"
+      />
+    </div>
+    <div class="min-w-0 space-y-1">
+      <label for="role-filter" class="block text-sm font-medium">
+        {{ 'admin.users.role.label' | t }}
+      </label>
+      <select
+        id="role-filter"
+        class="block min-h-11 w-full rounded-md border border-slate-600 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-100"
+        (change)="onRoleChange($event)"
+      >
+        <option value="">{{ 'admin.users.role.all' | t }}</option>
+        @for (option of roles; track option) {
+          <option [value]="option">{{ roleLabelId(option) | t }}</option>
+        }
+      </select>
+    </div>
+  </form>
+
+  @if (notice(); as current) {
+    <div
+      role="alert"
+      class="space-y-3 rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100"
+    >
+      <p>{{ text(current) }}</p>
+      <button
+        type="button"
+        data-action="retry"
+        class="inline-flex min-h-11 items-center justify-center rounded-md border border-red-900 px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-red-100"
+        (click)="retry()"
+      >
+        {{ 'admin.users.retry' | t }}
+      </button>
+    </div>
+  } @else if (loading()) {
+    <p class="text-slate-600 dark:text-slate-300" aria-live="polite">
+      {{ 'admin.users.loading' | t }}
+    </p>
+  } @else if (users().length === 0) {
+    <p class="text-slate-600 dark:text-slate-300">{{ 'admin.users.empty' | t }}</p>
+  } @else {
+    <div class="hidden overflow-x-auto md:block">
+      <table class="w-full min-w-[40rem] border-collapse text-left text-sm">
+        <caption class="sr-only">
+          {{
+            'admin.users.table.caption' | t
+          }}
+        </caption>
+        <thead class="border-b border-slate-300 dark:border-slate-600">
+          <tr>
+            <th scope="col" class="px-3 py-2 font-semibold">{{ 'admin.users.col.name' | t }}</th>
+            <th scope="col" class="px-3 py-2 font-semibold">{{ 'admin.users.col.email' | t }}</th>
+            <th scope="col" class="px-3 py-2 font-semibold">{{ 'admin.users.col.role' | t }}</th>
+            <th scope="col" class="px-3 py-2 font-semibold">{{ 'admin.users.col.status' | t }}</th>
+            <th scope="col" class="px-3 py-2 font-semibold">{{ 'admin.users.col.created' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of users(); track user.id) {
+            <tr class="border-b border-slate-200 dark:border-slate-700">
+              <td class="px-3 py-2">
+                <span class="flex items-center gap-2">
+                  <ab-avatar [name]="user.displayName" [url]="user.avatarUrl" size="sm" />
+                  <a
+                    class="font-medium text-brand-700 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-brand-100"
+                    [routerLink]="['/admin/users', user.id]"
+                    >{{ user.displayName }}</a
+                  >
+                </span>
+              </td>
+              <td class="px-3 py-2 break-all">{{ user.email }}</td>
+              <td class="px-3 py-2">{{ roleLabelId(user.role) | t }}</td>
+              <td class="px-3 py-2">{{ emailStatusId(user) | t }}</td>
+              <td class="px-3 py-2">{{ createdOn(user) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <ul class="space-y-3 md:hidden">
+      @for (user of users(); track user.id) {
+        <li
+          data-testid="user-card"
+          class="min-w-0 space-y-2 rounded-md border border-slate-300 p-4 dark:border-slate-600"
+        >
+          <div class="flex min-w-0 items-center gap-3">
+            <ab-avatar [name]="user.displayName" [url]="user.avatarUrl" size="md" />
+            <p class="min-w-0 break-words font-medium">
+              <a
+                class="underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 text-brand-700 dark:text-brand-100"
+                [routerLink]="['/admin/users', user.id]"
+                >{{ user.displayName }}</a
+              >
+            </p>
+          </div>
+          <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+            <dt class="text-slate-600 dark:text-slate-300">{{ 'admin.users.col.email' | t }}</dt>
+            <dd class="min-w-0 break-all">{{ user.email }}</dd>
+            <dt class="text-slate-600 dark:text-slate-300">{{ 'admin.users.col.role' | t }}</dt>
+            <dd>{{ roleLabelId(user.role) | t }}</dd>
+            <dt class="text-slate-600 dark:text-slate-300">{{ 'admin.users.col.status' | t }}</dt>
+            <dd>{{ emailStatusId(user) | t }}</dd>
+            <dt class="text-slate-600 dark:text-slate-300">{{ 'admin.users.col.created' | t }}</dt>
+            <dd>{{ createdOn(user) }}</dd>
+          </dl>
+        </li>
+      }
+    </ul>
+  }
+
+  <nav
+    [attr.aria-label]="'admin.users.pagination.label' | t"
+    class="flex flex-wrap items-center justify-between gap-3"
+  >
+    <p role="status" class="text-sm text-slate-600 dark:text-slate-300">
+      {{ 'admin.users.pagination.status' | t: { page: page(), pages: pageCount() } }}
+    </p>
+    <div class="flex gap-2">
+      <button
+        type="button"
+        data-action="previous"
+        class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-600 px-4 py-2 font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+        [disabled]="!hasPrevious() || loading()"
+        (click)="previousPage()"
+      >
+        {{ 'admin.users.pagination.previous' | t }}
+      </button>
+      <button
+        type="button"
+        data-action="next"
+        class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-600 px-4 py-2 font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+        [disabled]="!hasNext() || loading()"
+        (click)="nextPage()"
+      >
+        {{ 'admin.users.pagination.next' | t }}
+      </button>
+    </div>
+  </nav>
+</section>

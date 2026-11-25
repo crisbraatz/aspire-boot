@@ -8,30 +8,24 @@ namespace AspireBoot.Tests.Unit.Api.Identity.Shared;
 public sealed class IdentityFlowOptionsTests
 {
     [Fact]
-    public void SecurityStampValidationSeconds_DefaultsTo60()
+    public void EmailCooldownSeconds_DefaultsTo60()
     {
-        Assert.Equal(60, new IdentityFlowOptions().SecurityStampValidationSeconds);
+        Assert.Equal(60, new IdentityFlowOptions().EmailCooldownSeconds);
     }
 
     [Theory]
-    [InlineData(0)]
     [InlineData(-1)]
-    [InlineData(86_401)]
-    public void SecurityStampValidationSeconds_OutsideOneSecondToOneDay_IsRejected(int seconds)
+    [InlineData(3601)]
+    public void EmailCooldownSeconds_OutsideRange_IsRejected(int seconds)
     {
-        var options = new IdentityFlowOptions { SecurityStampValidationSeconds = seconds };
+        var options = new IdentityFlowOptions { EmailCooldownSeconds = seconds };
 
         Assert.False(Validator.TryValidateObject(options, new ValidationContext(options), null, validateAllProperties: true));
     }
 
-    [Theory]
-    [InlineData(1)]
-    [InlineData(60)]
-    [InlineData(86_400)]
-    public void SecurityStampValidationSeconds_WithinRange_IsAccepted(int seconds)
+    [Fact]
+    public void IdentityFlowOptions_HasNoSecurityStampInterval()
     {
-        var options = new IdentityFlowOptions { SecurityStampValidationSeconds = seconds };
-
-        Assert.True(Validator.TryValidateObject(options, new ValidationContext(options), null, validateAllProperties: true));
+        Assert.Null(typeof(IdentityFlowOptions).GetProperty("SecurityStampValidationSeconds"));
     }
 }

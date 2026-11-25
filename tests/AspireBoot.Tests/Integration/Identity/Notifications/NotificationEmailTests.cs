@@ -87,6 +87,26 @@ public sealed class NotificationEmailTests(InfrastructureFixture infrastructure)
         Assert.Contains("Celular", received.Text, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("pt-BR")]
+    [InlineData("en-US")]
+    [InlineData("es-ES")]
+    public async Task RoleChangedNotification_ArrivesLocalized(string culture)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"role-{culture.ToLowerInvariant()}@aspireboot.test";
+        var message = new RoleChangedNotification(Guid.NewGuid(), email, "Ana", culture, "Admin");
+        await infrastructure.ResetDatabaseAsync();
+
+        await PublishAsync(message, ct);
+
+        var expected = EmailTemplateCatalog.Render(EmailTemplateKind.RoleChanged, culture,
+            new EmailTemplateModel("Ana", RoleName: "Admin"));
+        var received = await infrastructure.Mailpit.WaitForMessageAsync(email, MailTimeout, ct);
+        Assert.Equal(expected.Subject, received.Subject);
+        Assert.Contains("Admin", received.Text, StringComparison.Ordinal);
+    }
+
     /// <summary>Enlists the message in the Api's outbox and commits it, so Wolverine relays it to RabbitMQ.</summary>
     private async Task PublishAsync<T>(T message, CancellationToken cancellationToken)
     {

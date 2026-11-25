@@ -5,7 +5,7 @@ using AspireBoot.Core.Identity.Domain;
 
 namespace AspireBoot.Core.Infrastructure.Email.Templates;
 
-/// <summary>Copy for the identity emails. Placeholders: {0} display name, {1} passkey name.</summary>
+/// <summary>Copy for the identity emails. Placeholders: {0} display name, {1} passkey name, {2} localized role name.</summary>
 internal static class IdentityEmailTemplates
 {
     private sealed record Copy(string Subject, string Greeting, string Body, string? ActionLabel, string Footer);
@@ -39,6 +39,12 @@ internal static class IdentityEmailTemplates
                     "A chave de acesso \"{1}\" foi removida da sua conta. Se não foi você, recupere sua conta imediatamente.",
                     null,
                     "Esta é uma notificação automática de segurança."),
+                [EmailTemplateKind.RoleChanged] = new(
+                    "Seu perfil de acesso no AspireBoot foi alterado",
+                    "Olá, {0}!",
+                    "Um administrador alterou seu perfil de acesso para \"{2}\". Você precisa entrar novamente. Se não esperava essa mudança, fale com um administrador.",
+                    null,
+                    "Esta é uma notificação automática de segurança."),
             },
             [UiCulture.EnUs.Value] = new Dictionary<EmailTemplateKind, Copy>
             {
@@ -64,6 +70,12 @@ internal static class IdentityEmailTemplates
                     "A passkey was removed from your AspireBoot account",
                     "Hi {0},",
                     "The passkey \"{1}\" was removed from your account. If this was not you, recover your account right away.",
+                    null,
+                    "This is an automatic security notification."),
+                [EmailTemplateKind.RoleChanged] = new(
+                    "Your AspireBoot access role was changed",
+                    "Hi {0},",
+                    "An administrator changed your role to \"{2}\". You need to sign in again. If you did not expect this change, contact an administrator.",
                     null,
                     "This is an automatic security notification."),
             },
@@ -93,6 +105,12 @@ internal static class IdentityEmailTemplates
                     "La clave de acceso \"{1}\" se eliminó de tu cuenta. Si no fuiste tú, recupera tu cuenta de inmediato.",
                     null,
                     "Esta es una notificación automática de seguridad."),
+                [EmailTemplateKind.RoleChanged] = new(
+                    "Tu rol de acceso en AspireBoot fue modificado",
+                    "¡Hola, {0}!",
+                    "Un administrador cambió tu rol a \"{2}\". Debes iniciar sesión de nuevo. Si no esperabas este cambio, contacta con un administrador.",
+                    null,
+                    "Esta es una notificación automática de seguridad."),
             },
         };
 
@@ -105,7 +123,7 @@ internal static class IdentityEmailTemplates
             throw new ArgumentException("This email kind requires a link.", nameof(model));
         }
 
-        var values = new[] { model.DisplayName, model.PasskeyName ?? string.Empty };
+        var values = new[] { model.DisplayName, model.PasskeyName ?? string.Empty, RoleLabel(culture, model.RoleName) };
         var encoded = values.Select(value => WebUtility.HtmlEncode(value) ?? string.Empty).ToArray();
 
         var greeting = Format(copy.Greeting, values);
@@ -124,6 +142,22 @@ internal static class IdentityEmailTemplates
             + "</body></html>";
 
         return new RenderedEmail(copy.Subject, text, html);
+    }
+
+    private static string RoleLabel(UiCulture culture, string? role)
+    {
+        var admin = string.Equals(role, Roles.Admin, StringComparison.Ordinal);
+        if (culture == UiCulture.PtBr)
+        {
+            return admin ? "Administrador" : "Usuário";
+        }
+
+        if (culture == UiCulture.EsEs)
+        {
+            return admin ? "Administrador" : "Usuario";
+        }
+
+        return admin ? "Admin" : "User";
     }
 
     private static string Format(string template, string[] values) =>
