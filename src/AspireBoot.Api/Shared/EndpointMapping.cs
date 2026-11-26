@@ -1,8 +1,11 @@
 using AspireBoot.Api.Identity.Account.AddPasskey;
 using AspireBoot.Api.Identity.Account.BeginAddPasskey;
+using AspireBoot.Api.Identity.Account.EndOtherSessions;
+using AspireBoot.Api.Identity.Account.EndSession;
 using AspireBoot.Api.Identity.Account.GetAvatar;
 using AspireBoot.Api.Identity.Account.GetMe;
 using AspireBoot.Api.Identity.Account.ListPasskeys;
+using AspireBoot.Api.Identity.Account.ListSessions;
 using AspireBoot.Api.Identity.Account.RemoveAvatar;
 using AspireBoot.Api.Identity.Account.RemovePasskey;
 using AspireBoot.Api.Identity.Account.RenamePasskey;
@@ -71,6 +74,9 @@ internal static class EndpointMapping
         AddPasskeyEndpoint.Map(account);
         RenamePasskeyEndpoint.Map(account);
         RemovePasskeyEndpoint.Map(account);
+        ListSessionsEndpoint.Map(account);
+        EndSessionEndpoint.Map(account);
+        EndOtherSessionsEndpoint.Map(account);
 
         // Administration: Admin policy and the admin rate limit on the whole group, so a missing grant is a 403.
         var admin = identity.MapGroup("/admin")

@@ -40,7 +40,11 @@ internal sealed partial class CompleteRegistrationEndpoint
         AppDbContext db,
         UserManager<User> users,
         SignInManager<User> signIn,
+        SessionSignIn sessionSignIn,
+        HttpContext httpContext,
         ISecurityStampCache stamps,
+        IUserSessionCache sessions,
+        TimeProvider clock,
         IAuditActorOverride auditActor,
         IOptions<BootstrapOptions> bootstrap,
         ILogger<CompleteRegistrationEndpoint> logger,
@@ -153,10 +157,32 @@ internal sealed partial class CompleteRegistrationEndpoint
             return OperationFailed(logger, user.Id, "update-stamp", stamped);
         }
 
+        // Every earlier session ends and the new row is added in the same commit. The cookie is issued only after the commit:
+        // if that fails, the row is an orphan nobody holds the id of, and it expires naturally.
+        var revoked = await UserSessionRevocation.RevokeAsync(db, user.Id, exceptSessionId: null, clock.GetUtcNow(), cancellationToken);
+        var session = sessionSignIn.CreateSession(user, isPersistent: false, httpContext);
+        await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        await stamps.StampChangedAsync(user.Id);
 
-        await signIn.SignInAsync(user, isPersistent: false);
+        // Sequential and never throwing: one failing never skips the other, and either alone rejects the other sessions.
+        await stamps.StampChangedAsync(user.Id);
+        await sessions.SessionsChangedAsync(revoked);
+        if (revoked.Count > 0)
+        {
+            IdentityMetrics.RecordSessionsEnded("stamp", revoked.Count);
+        }
+
+        // The account is already confirmed and the link consumed: a cookie failure must not look like a retryable error.
+        var cookieIssued = true;
+        try
+        {
+            await sessionSignIn.IssueCookieAsync(user, isPersistent: false, session.Id);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            cookieIssued = false;
+            CookieIssueFailed(logger, user.Id, exception.GetType().Name);
+        }
 
         IdentityMetrics.RecordPasskeyAdded();
         if (request.Purpose == IdentityLinkTokens.ConfirmPurpose)
@@ -169,6 +195,11 @@ internal sealed partial class CompleteRegistrationEndpoint
         }
 
         RegistrationCompleted(logger, user.Id);
+        if (!cookieIssued)
+        {
+            return IdentityLinkTokens.SignInRequired();
+        }
+
         return TypedResults.NoContent();
     }
 
@@ -181,6 +212,9 @@ internal sealed partial class CompleteRegistrationEndpoint
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "Passkey registration for user {UserId} failed at {Operation}: {Codes}.")]
     private static partial void OperationFailedLog(ILogger logger, Guid userId, string operation, string codes);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Error, Message = "Registration of user {UserId} was committed but the sign-in cookie failed ({ErrorType}); the user must sign in.")]
+    private static partial void CookieIssueFailed(ILogger logger, Guid userId, string errorType);
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "First passkey registered for user {UserId}.")]
     private static partial void RegistrationCompleted(ILogger logger, Guid userId);

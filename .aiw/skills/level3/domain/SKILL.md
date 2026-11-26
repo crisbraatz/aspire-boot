@@ -1,8 +1,8 @@
 ---
 name: domain
-description: Load before planning or implementing any feature to use the AspireBoot business vocabulary, rules and workflows (contas sem senha com passkeys, cadastro, recuperação, sessões, perfil e avatar, papéis).
+description: Load before planning or implementing any feature to use the AspireBoot business vocabulary, rules and workflows (contas sem senha com passkeys, cadastro, recuperação, sessões e encerramento de sessões, perfil e avatar, papéis).
 level: 3
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 
 # Domínio do AspireBoot
@@ -18,7 +18,11 @@ updated: 2026-11-25
 - **Recuperação de conta**: caminho para registrar uma nova passkey quando a pessoa perdeu o acesso às suas passkeys. Passa pelo e-mail.
 - **Link de e-mail**: link com um token de uso único que confirma o e-mail ou inicia a recuperação. Vale por 2 horas.
 - **Intervalo de reenvio**: tempo mínimo de 60 segundos entre dois e-mails de confirmação ou recuperação para a mesma conta.
-- **Sessão**: um dispositivo ou navegador conectado à conta.
+- **Sessão**: um dispositivo ou navegador conectado à conta. Cada entrada na conta abre uma sessão, que dura 8 horas e se renova com o uso.
+- **Encerrar sessão**: desconectar um dispositivo específico da conta. A sessão encerrada deixa de valer na próxima ação naquele dispositivo.
+- **Este dispositivo**: a sessão que a pessoa está usando agora. Ela não pode ser encerrada pela lista de sessões; para sair, usa-se "Sair".
+- **Sair**: desconectar o dispositivo atual. Encerra a sessão atual e a deixa de valer.
+- **Última atividade**: momento em que a sessão foi usada pela última vez. É atualizado no máximo a cada 5 minutos.
 - **Manter conectado**: escolha explícita, no login, de manter a sessão salva no navegador.
 - **Nome de exibição**: como o usuário aparece para os outros.
 - **Perfil**: dados do usuário dentro do app (nome de exibição, avatar e preferências de idioma e tema).
@@ -42,7 +46,7 @@ updated: 2026-11-25
 10. E-mails de confirmação e recuperação têm intervalo de 60 segundos por conta. Um pedido dentro desse intervalo não envia outro e-mail. (fonte: feature 001)
 11. Os e-mails da conta usam o idioma preferido da pessoa. O idioma escolhido na tela de entrada vale para o cadastro e é salvo na conta. (fonte: feature 001)
 12. O usuário edita o próprio perfil e as próprias preferências. Mexer em outros usuários depende do papel. (fonte: entrevista)
-13. O usuário vê as próprias sessões ativas e pode encerrar uma específica, todas as outras ou a atual. (fonte: entrevista)
+13. O usuário vê as próprias sessões ativas e pode encerrar uma específica ou todas as outras. Para encerrar a sessão atual, a pessoa usa "Sair". (fonte: entrevista, feature 004)
 14. Todo usuário novo recebe o papel **User**. **Admin** nunca é concedido por pedido de recuperação. Só o e-mail configurado no bootstrap vira Admin, na confirmação do próprio e-mail, uma única vez. (fonte: feature 003)
 15. Um Admin não pode remover o próprio papel de Admin. (fonte: suposição)
 25. Cada pessoa tem um único papel: **User** ou **Admin**. Promover é trocar User por Admin, e rebaixar é o inverso. (fonte: feature 003)
@@ -50,6 +54,11 @@ updated: 2026-11-25
 27. Mudar o papel de alguém encerra as sessões dessa pessoa. O novo papel vale no próximo login. (fonte: feature 003)
 28. Só o Admin lista, vê o detalhe e muda o papel de outros usuários. Nenhuma pessoa comum vê dados de outros. (fonte: feature 003)
 29. Toda alteração de dados da conta e do papel fica registrada na auditoria, com quem fez e quando. O registro não pode ser editado nem apagado pela aplicação. (fonte: feature 003)
+30. Toda sessão mostra o navegador, o sistema operacional, o endereço IP parcial (dois primeiros blocos do IPv4 ou os 48 primeiros bits do IPv6), a data de entrada e a última atividade. O endereço IP completo e o texto completo do navegador nunca são guardados. (fonte: feature 004)
+31. Encerrar uma sessão a torna inválida na próxima ação naquele dispositivo, mesmo que o cookie ainda esteja no navegador. (fonte: feature 004)
+32. Encerrar uma sessão de outra pessoa, ou uma que não existe, responde como se a sessão não existisse. Encerrar uma sessão já encerrada não causa erro. (fonte: feature 004)
+33. Remover uma passkey encerra as outras sessões e mantém a sessão de quem fez a remoção. Mudar o papel encerra todas as sessões da pessoa. Concluir uma recuperação encerra as sessões anteriores. As sessões afetadas deixam de valer na hora. (fonte: feature 004)
+34. Sessões encerradas ou expiradas são apagadas automaticamente depois de 30 dias. Elas não aparecem na lista de sessões ativas. (fonte: feature 004)
 16. O nome de exibição tem de 2 a 100 caracteres, sem caracteres de controle. (fonte: scaffold)
 17. As telas existem em português, inglês e espanhol. O usuário escolhe o idioma, e a escolha é salva na conta quando ela está conectada. (fonte: entrevista, feature 001)
 18. O avatar aceita apenas JPEG, PNG ou WebP, de até 5 MB, com no máximo 8000 px por lado e 24 milhões de pixels. Um arquivo fora desses formatos é recusado, mesmo com extensão de imagem. (fonte: feature 002)
@@ -72,6 +81,8 @@ updated: 2026-11-25
 - Um papel alterado não vale em sessões antigas: elas são encerradas na próxima requisição.
 - Passkeys, tokens e dados pessoais nunca aparecem em logs, métricas ou URLs.
 
+- Sessão ativa: uma sessão não encerrada, não expirada e que pertence à conta.
+
 ## Fluxos
 ### Cadastro
 1. A pessoa informa o nome de exibição e o e-mail, e escolhe o idioma.
@@ -84,6 +95,12 @@ updated: 2026-11-25
 2. A pessoa confirma com o dispositivo (biometria, PIN ou gerenciador de senhas).
 3. Se a pessoa marcou "manter conectado", a sessão continua salva no navegador. Caso contrário, ela termina ao fechar o navegador.
 4. Falhas mostram uma mensagem genérica, sem indicar se a passkey ou a conta existem.
+
+### Sessões
+1. A pessoa abre a página de sessões a partir da sua conta e vê a lista, com "Este dispositivo" marcado.
+2. Para encerrar um dispositivo, a pessoa confirma numa caixa própria. A lista é atualizada e a confirmação é anunciada para leitores de tela.
+3. Para encerrar todas as outras, a pessoa confirma numa caixa separada. A sessão atual continua aberta.
+4. Um dispositivo que teve a sessão encerrada volta para a tela de entrada na próxima ação.
 
 ### Recuperação de conta
 1. A pessoa informa o e-mail. A resposta é a mesma, exista a conta ou não.

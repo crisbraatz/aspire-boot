@@ -32,8 +32,11 @@ internal sealed partial class RemovePasskeyEndpoint
         string id,
         ClaimsPrincipal principal,
         UserManager<User> users,
-        SignInManager<User> signIn,
+        SessionSignIn sessionSignIn,
+        HttpContext httpContext,
         ISecurityStampCache stamps,
+        IUserSessionCache sessions,
+        TimeProvider clock,
         IDbContextOutbox<AppDbContext> outbox,
         ILogger<RemovePasskeyEndpoint> logger,
         CancellationToken cancellationToken)
@@ -81,13 +84,22 @@ internal sealed partial class RemovePasskeyEndpoint
         // Invalidates other sessions; the current session is re-issued below, after the commit.
         await users.UpdateSecurityStampAsync(user);
 
+        // Every session except the current one ends (tracked, so audited and saved by the same commit).
+        Guid? currentSid = Guid.TryParse(principal.FindFirstValue(SessionClaims.SessionId), out var sid) ? sid : null;
+        var revoked = await UserSessionRevocation.RevokeAsync(db, user.Id, currentSid, clock.GetUtcNow(), cancellationToken);
+
         await outbox.PublishAsync(new PasskeyRemovedNotification(
             user.Id, user.Email!, user.DisplayName.Value, user.PreferredCulture.Value, passkey.Name ?? string.Empty));
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken);
 
         // Overwrites the cached stamp after the commit, so the other sessions are rejected on their next request.
         await stamps.StampChangedAsync(user.Id);
-        await signIn.RefreshSignInAsync(user);
+        await sessions.SessionsChangedAsync(revoked);
+        if (revoked.Count > 0)
+        {
+            IdentityMetrics.RecordSessionsEnded("stamp", revoked.Count);
+        }
+        await sessionSignIn.RefreshAsync(user, httpContext);
 
         IdentityMetrics.RecordPasskeyRemoved();
         PasskeyRemoved(logger, user.Id);

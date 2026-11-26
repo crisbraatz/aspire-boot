@@ -20,6 +20,7 @@ internal static class IdentityLinkTokens
     public const string InvalidLinkCode = "identity.invalidLink";
     public const string PasskeyFailedCode = "identity.passkeyFailed";
     public const string SignInFailedCode = "identity.signInFailed";
+    public const string SignInRequiredCode = "identity.signInRequired";
 
     private const string EmailConfirmationPurpose = "EmailConfirmation";
     public const string PasskeyRecoveryPurpose = "PasskeyRecovery";
@@ -85,6 +86,10 @@ internal static class IdentityLinkTokens
     /// <summary>Every sign-in failure looks the same: no hint about the account, the credential or the cause.</summary>
     public static ProblemHttpResult SignInFailed() =>
         Problem(SignInFailedCode, "Sign-in failed. Check your passkey and try again.", StatusCodes.Status401Unauthorized);
+
+    /// <summary>The account is ready but the sign-in cookie could not be issued: the user signs in with the new passkey.</summary>
+    public static ProblemHttpResult SignInRequired() =>
+        Problem(SignInRequiredCode, "Your account is ready, but we could not sign you in. Sign in with your passkey.", StatusCodes.Status500InternalServerError);
 
     private static ProblemHttpResult Problem(string code, string title, int statusCode = StatusCodes.Status400BadRequest) =>
         TypedResults.Problem(

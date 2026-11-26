@@ -25,7 +25,7 @@ API mais um frontend web pronto. Um app mobile está previsto para o futuro (a A
 - Contas sem senha: cadastro com confirmação de e-mail (com reenvio), registro de passkeys, login com passkey (com opção de manter conectado), logout, recuperação de conta por e-mail e gestão das passkeys (listar, adicionar, renomear e remover; a última passkey nunca pode ser removida).
 - Perfil: ver e editar o próprio perfil, incluindo foto (upload), e as preferências (idioma, tema).
 - Administração de usuários (Admin): listagem com busca e filtro por papel, detalhe de um usuário e mudança de papel, com aviso por e-mail à pessoa afetada. Exclusão de usuários ainda não existe.
-- Sessões: ver as sessões ativas, encerrar uma sessão específica, encerrar todas as outras e sair. Quando a conta muda (recuperação, remoção de passkey ou mudança de papel), as sessões afetadas são encerradas na hora.
+- Sessões: ver as sessões ativas (navegador, sistema operacional, IP parcial, datas), encerrar uma sessão específica, encerrar todas as outras e sair. A sessão atual não é encerrada pela lista; para sair, usa-se "Sair". Quando a conta muda (recuperação, remoção de passkey ou mudança de papel), as sessões afetadas são encerradas na hora. Sessões encerradas ou expiradas são apagadas depois de 30 dias.
 - RBAC: papéis (Admin e Usuário) controlando o acesso às telas e aos endpoints. Cada pessoa tem um único papel.
 - Auditoria: toda alteração de dados da conta e de papéis fica registrada com quem fez, quando e os valores antes e depois. Senhas, tokens e dados de passkey nunca entram no registro. O registro não pode ser editado nem apagado pela aplicação.
 - Infraestrutura: banco de dados, mensageria, cache, armazenamento de arquivos, envio de e-mail, HTTPS, observabilidade (logs, métricas, traces) e health checks.
@@ -35,7 +35,7 @@ API mais um frontend web pronto. Um app mobile está previsto para o futuro (a A
 O template traz instruções e skills de IA fortes, específicas das tecnologias e da arquitetura adotadas. Assim, os assistentes de IA evoluem o produto sem se desviar da arquitetura e sem espalhar código fora do lugar. Todo código gerado deve ser fácil de manter, bem organizado, performático, seguro e testado, seguindo convenções claras sobre onde cada coisa vive.
 
 ## Dados e conformidade
-Guarda dados pessoais básicos (nome, e-mail, foto). O registro de auditoria também guarda nomes e e-mails, porque o histórico precisa deles. Ainda não há pedido de exclusão de dados nem prazo de retenção do registro; isso fica para depois. Por enquanto não segue uma lei específica (LGPD/GDPR), apenas boas práticas gerais de segurança: contas sem senha (a entrada é só por passkey), cookies seguros, proteção CSRF, limites de requisições por usuário e por IP, encerramento imediato de sessões, auditoria protegida contra alteração, e segredos fora do código.
+Guarda dados pessoais básicos (nome, e-mail, foto) e, por sessão, o navegador, o sistema operacional e o endereço IP parcial (sem o endereço completo). O registro de auditoria também guarda nomes e e-mails, porque o histórico precisa deles. Ainda não há pedido de exclusão de dados nem prazo de retenção do registro; isso fica para depois. Por enquanto não segue uma lei específica (LGPD/GDPR), apenas boas práticas gerais de segurança: contas sem senha (a entrada é só por passkey), cookies seguros, proteção CSRF, limites de requisições por usuário e por IP, encerramento imediato de sessões, auditoria protegida contra alteração, e segredos fora do código.
 
 ## Integrações
 Um serviço SMTP externo para e-mail. As demais peças (banco, fila, cache, armazenamento) rodam em containers próprios. Não há gateway de pagamento.
@@ -47,6 +47,9 @@ Um serviço SMTP externo para e-mail. As demais peças (banco, fila, cache, arma
 
 ## Métricas de sucesso
 Primeira versão pronta quando uma pessoa clona o repositório, roda um comando e em poucos minutos tem funcionando, com HTTPS: cadastro, login com passkey, confirmação por e-mail, recuperação de conta, upload de foto, listagem e detalhe de usuários, edição das próprias configurações e RBAC. Depois, ela publica na VPS seguindo um guia simples.
+
+## Mudança para a versão com sessões
+A primeira versão que traz a lista de sessões encerra a sessão antiga de todas as pessoas. Cada pessoa precisa entrar de novo, com a passkey, uma única vez. A tela de entrada é mostrada automaticamente. Não há perda de dados.
 
 ## Suposições e perguntas em aberto
 - Equipe de uma pessoa com IA e sem prazo fixo (suposição).

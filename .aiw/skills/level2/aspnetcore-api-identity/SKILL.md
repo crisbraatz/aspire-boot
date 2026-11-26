@@ -49,8 +49,12 @@ fetched: 2026-11-25
   - Identity 10 has no `isPersistent` overload on `PasskeySignInAsync`. "Keep me signed in" is implemented by calling `SignInAsync(user, isPersistent)` after a verified assertion.
 - Passkey management: `UserManager.GetPasskeysAsync`, `GetPasskeyAsync`, `RemovePasskeyAsync`, `FindByPasskeyIdAsync`. `UserPasskeyInfo` has `CreatedAt` but no last-used timestamp.
 - Credential JSON is capped at 16 KB, and passkey names are 1 to 50 characters.
+- Sessions (ADR 0007): every sign-in goes through `SessionSignIn`. It creates a `UserSession` row and calls `SignInManager.SignInWithClaimsAsync` with the claim `aspireboot:sid` (`SessionClaims.SessionId`). Never add the sid in an `IUserClaimsPrincipalFactory`, because it has no per-sign-in id and it also runs on refresh.
+- Never call `SignInManager.RefreshSignInAsync`: in ASP.NET Core 10 it keeps only the `amr` claim, so the sid is lost. Use `SessionSignIn.RefreshAsync`, which keeps the sid, the persistence flag and the authentication method, and signs out when the authenticated user id differs from `user.Id`.
 - Cookie: `__Host-` prefix, `HttpOnly`, `Secure` (Always), `SameSite=Strict`, sliding expiration plus an 8 h lifetime, and persistence only by explicit choice. API endpoints return 401/403, never redirects.
 - Security stamp (ADR 0005): every authenticated request is checked in the cookie `OnValidatePrincipal` handler (`SecurityStampPrincipalValidator`). It compares the cookie stamp with the current stamp from `ISecurityStampCache` (HybridCache, key `identity:stamp:{id}`, 60 s maximum lifetime, `DisableLocalCache`, no tags). Every slice that changes a stamp calls `UpdateSecurityStampAsync` in its transaction, then `StampChangedAsync` after the commit. Never skip `StampChangedAsync`, and never add an interval check.
+- Session record check (ADR 0007): after the stamp check, `SecurityStampPrincipalValidator` checks the session for the cookie's sid. The state is one HybridCache entry per session (`identity:session:{id}`, 60 s, Redis only, no tags). A missing sid, a foreign user, a revoked or expired row rejects the request. Heartbeat writes use `ExecuteUpdate` with a throttle and then call `InvalidateAsync` (`RemoveAsync`), never `SetAsync`.
+- Revocation: a change that ends sessions revokes the rows with `UserSessionRevocation.RevokeAsync` inside its transaction. After the commit it calls `StampChangedAsync` and then `SessionsChangedAsync(ids)`. Both never throw.
 - Cache failure falls back to the database; database failure rejects the principal. Never fail open.
 - Generic responses for sign-up, resend and recovery (`202` with the same body, no account enumeration) and one generic `401` for sign-in failures. Keep the timing close, and note the accepted residual risk in ADR 0003.
 - Confirmation and recovery tokens are Identity email tokens and a custom `PasskeyRecoveryTokenProvider`. Both last 2 hours (`DataProtectionTokenProviderOptions.TokenLifespan`). They are single use because completing a flow updates the security stamp. Links point to the SPA, which posts the token to the API in the body. Tokens are never logged.
@@ -101,3 +105,6 @@ ForwardedHeaders → ExceptionHandler → StatusCodePages → HSTS (prod) → Ro
 - Calling a password API, or re-adding a password option, which breaks ADR 0003.
 - Changing a passkey without `UserManager.AddOrUpdatePasskeyAsync`, which leaves the sign counter stale.
 - Scalar/OpenAPI exposed in production.
+- Calling `RefreshSignInAsync` or `SignInManager.SignInAsync` directly, which skips the session row and the sid claim.
+- Writing the session heartbeat with `SetAsync`, which can undo a revocation that committed in between.
+- Ending a session with a DELETE that returns 200 or 204 for the current session. The current session returns 409 `identity.currentSession`; sign-out is the way to leave.

@@ -1,17 +1,22 @@
+using System.Net;
+
 using AspireBoot.Api.Shared;
 
 using JasperFx.CommandLine;
 
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AspireBoot.Tests.Integration.Infrastructure;
 
 /// <summary>Hosts the real API in memory, wired to the containers from <see cref="InfrastructureFixture"/>.</summary>
 public class AspireBootApiFactory(
     InfrastructureFixture infrastructure,
-    IReadOnlyDictionary<string, string?>? settingOverrides = null) : WebApplicationFactory<global::Program>
+    IReadOnlyDictionary<string, string?>? settingOverrides = null,
+    IPAddress? peerAddress = null) : WebApplicationFactory<global::Program>
 {
     static AspireBootApiFactory()
     {
@@ -26,6 +31,25 @@ public class AspireBootApiFactory(
         builder.UseSetting("ConnectionStrings:rabbitmq", infrastructure.RabbitMqConnectionString);
         builder.UseSetting("ConnectionStrings:redis", infrastructure.RedisConnectionString);
         builder.ConfigureAppConfiguration(configuration => configuration.AddInMemoryCollection(BuildSettings()));
+
+        if (peerAddress is not null)
+        {
+            // TestServer leaves RemoteIpAddress null: the filter sets the peer before UseForwardedHeaders runs.
+            builder.ConfigureServices(services => services.AddTransient<IStartupFilter>(_ => new PeerAddressFilter(peerAddress)));
+        }
+    }
+
+    private sealed class PeerAddressFilter(IPAddress address) : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Use((context, nextMiddleware) =>
+            {
+                context.Connection.RemoteIpAddress = address;
+                return nextMiddleware(context);
+            });
+            next(app);
+        };
     }
 
     /// <summary>Test defaults: high rate limits so the suite never sees 429, then per-test overrides.</summary>

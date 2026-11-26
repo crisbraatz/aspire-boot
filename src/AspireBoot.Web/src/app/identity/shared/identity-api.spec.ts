@@ -173,4 +173,60 @@ describe('IdentityApi', () => {
     }
     await Promise.all(calls);
   });
+
+  it('lists the account sessions with GET', async () => {
+    const done = api.listSessions();
+
+    const request = httpTesting.expectOne('/api/identity/account/sessions');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.headers.has('X-XSRF-TOKEN')).toBe(false);
+    const session = {
+      id: 's1',
+      browser: 'chrome',
+      os: 'windows',
+      createdAt: '2026-11-01T10:00:00Z',
+      lastSeenAt: '2026-11-02T10:00:00Z',
+      ipMasked: '192.168.*.*',
+      current: true,
+    };
+    request.flush([session]);
+    expect(await done).toEqual([session]);
+  });
+
+  it('ends one session with DELETE on its encoded id', async () => {
+    const done = api.endSession('ab+/=');
+
+    const request = httpTesting.expectOne('/api/identity/account/sessions/ab%2B%2F%3D');
+    expect(request.request.method).toBe('DELETE');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await done;
+  });
+
+  it('ends all other sessions with POST and returns the count', async () => {
+    const done = api.endOtherSessions();
+
+    const request = httpTesting.expectOne('/api/identity/account/sessions/end-others');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({});
+    request.flush({ ended: 3 });
+    expect(await done).toEqual({ ended: 3 });
+  });
+
+  it('sends the XSRF header on session writes', async () => {
+    document.cookie = `${XSRF_COOKIE}=token-123; path=/`;
+    const calls = [api.endSession('s1'), api.endOtherSessions()];
+
+    const requests = httpTesting.match((request) =>
+      request.url.startsWith('/api/identity/account/sessions'),
+    );
+    expect(requests).toHaveLength(calls.length);
+    for (const request of requests) {
+      expect(request.request.headers.get('X-XSRF-TOKEN'), request.request.url).toBe('token-123');
+      request.flush(request.request.method === 'POST' ? { ended: 0 } : null, {
+        status: request.request.method === 'POST' ? 200 : 204,
+        statusText: 'OK',
+      });
+    }
+    await Promise.all(calls);
+  });
 });

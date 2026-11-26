@@ -41,6 +41,24 @@ export interface RegistrationRequest {
   purpose: RegistrationPurpose;
 }
 
+export interface SessionSummary {
+  id: string;
+  /** Parsed browser token, for example 'chrome' or 'unknown'. */
+  browser: string;
+  /** Parsed operating system token, for example 'windows' or 'unknown'. */
+  os: string;
+  createdAt: string;
+  lastSeenAt: string;
+  /** Masked client address, for example '192.168.*.*' or 'unknown'. */
+  ipMasked: string;
+  /** True for the session that made the request. */
+  current: boolean;
+}
+
+export interface EndOtherSessionsResult {
+  ended: number;
+}
+
 export interface CompleteRegistrationRequest extends RegistrationRequest {
   /** The credential JSON produced by webauthn.create(). */
   credential: string;
@@ -130,6 +148,22 @@ export class IdentityApi {
 
   removePasskey(id: string): Promise<void> {
     return this.send<void>('DELETE', this.passkeyUrl(id));
+  }
+
+  listSessions(): Promise<SessionSummary[]> {
+    return this.send<SessionSummary[]>('GET', `${BASE}/account/sessions`);
+  }
+
+  endSession(id: string): Promise<void> {
+    return this.send<void>('DELETE', this.sessionUrl(id));
+  }
+
+  endOtherSessions(): Promise<EndOtherSessionsResult> {
+    return this.send<EndOtherSessionsResult>('POST', `${BASE}/account/sessions/end-others`, {});
+  }
+
+  private sessionUrl(id: string): string {
+    return `${BASE}/account/sessions/${encodeURIComponent(id)}`;
   }
 
   private passkeyUrl(id: string): string {

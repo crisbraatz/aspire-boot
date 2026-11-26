@@ -38,6 +38,8 @@ internal sealed partial class ChangeUserRoleEndpoint
         ClaimsPrincipal principal,
         UserManager<User> users,
         ISecurityStampCache stamps,
+        IUserSessionCache sessions,
+        TimeProvider clock,
         IDbContextOutbox<AppDbContext> outbox,
         ILogger<ChangeUserRoleEndpoint> logger,
         CancellationToken cancellationToken)
@@ -113,6 +115,9 @@ internal sealed partial class ChangeUserRoleEndpoint
             return OperationFailed(logger, actorId, target.Id, "update-stamp", stamped);
         }
 
+        // Tracked, so the revocations are audited and saved by the same commit as the role change.
+        var revoked = await UserSessionRevocation.RevokeAsync(db, target.Id, exceptSessionId: null, clock.GetUtcNow(), cancellationToken);
+
         await outbox.PublishAsync(new RoleChangedNotification(
             target.Id, target.Email!, target.DisplayName.Value, target.PreferredCulture.Value, newRole));
         // Commits the explicit transaction as well (no CommitAsync afterwards).
@@ -120,6 +125,11 @@ internal sealed partial class ChangeUserRoleEndpoint
 
         // Overwrites the cached stamp after the commit, so the target's sessions are rejected on their next request.
         await stamps.StampChangedAsync(target.Id);
+        await sessions.SessionsChangedAsync(revoked);
+        if (revoked.Count > 0)
+        {
+            IdentityMetrics.RecordSessionsEnded("stamp", revoked.Count);
+        }
 
         IdentityMetrics.RecordRoleChanged(newRole);
         RoleChanged(logger, actorId, target.Id, newRole);

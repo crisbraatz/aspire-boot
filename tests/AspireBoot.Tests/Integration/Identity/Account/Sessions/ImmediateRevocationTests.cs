@@ -130,7 +130,7 @@ public sealed class ImmediateRevocationTests(InfrastructureFixture infrastructur
         }), ct);
     }
 
-    private static async Task<HttpResponseMessage> CompleteRecoveryAsync(
+    internal static async Task<HttpResponseMessage> CompleteRecoveryAsync(
         IdentityClient client, (string UserId, string Token) link, SoftwareAuthenticator authenticator, CancellationToken ct)
     {
         using var options = await client.SendUnsafeAsync(

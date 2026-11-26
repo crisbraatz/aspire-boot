@@ -12,7 +12,7 @@ AspireBoot is an open-source .NET Aspire template for builders, from experienced
 | :--- | :--- |
 | Orchestration (local) | .NET Aspire 17 |
 | API and Worker | .NET 10 LTS, ASP.NET Core Minimal APIs, Scalar API docs |
-| Accounts and RBAC | ASP.NET Core Identity 10, passwordless (passkeys only), secure cookies, antiforgery, rate limiting, Admin and User roles, immediate session revocation |
+| Accounts and RBAC | ASP.NET Core Identity 10, passwordless (passkeys only), secure cookies, antiforgery, rate limiting, Admin and User roles, immediate session revocation, a "My sessions" page with per-device sign-out |
 | Auditing | Append-only `audit_entries` table written in the same transaction as each change |
 | Database | PostgreSQL 19 + EF Core 10 migrations |
 | Messaging | RabbitMQ 4 + Wolverine (transactional outbox and durable inbox) |
@@ -30,6 +30,8 @@ AspireBoot is an open-source .NET Aspire template for builders, from experienced
 **Administration:** Admins list and search users, view details and change roles. The last Admin can never be removed, and nobody can remove their own Admin role. Every change is audited.
 
 **Passwordless accounts:** users sign up with an email, confirm it and register a passkey. There are no passwords anywhere in the product. Recovery is also by email link.
+
+**My sessions:** every sign-in is recorded on the server. Users see their devices (browser, operating system, partial IP and last activity), can end one device or all others, and the change takes effect on the next request. Only masked IPs and browser summaries are stored, and the Worker deletes old session rows after 30 days.
 
 **Built for AI-assisted development:** [AGENTS.md](AGENTS.md) and the skills in `.aiw/skills/` teach any assistant (Claude, Codex, Gemini, Copilot) where code belongs and how to keep it secure, tested and fast.
 
@@ -94,11 +96,14 @@ This runs unit tests, integration tests against real PostgreSQL, RabbitMQ, Redis
    cp deploy/.env.example deploy/.env   # fill every value with strong secrets
    ```
    To create the first Admin, set `BOOTSTRAP_ADMIN_EMAIL` to an address you control. That account becomes Admin when it confirms its email, once. Leave it empty for no bootstrap Admin. Locally, set `Bootstrap__AdminEmail` (or `dotnet user-secrets --project src/AspireBoot.Api set "Bootstrap:AdminEmail" "<email>"`).
+
+   Session settings (optional, defaults shown in `deploy/.env.example`): `UserSessions__LastSeenThrottle` and `UserSessions__Retention`.
 4. Start:
    ```bash
    docker compose -f deploy/compose.yaml --env-file deploy/.env up -d --build
    ```
    - The one-shot `migrator` service applies database migrations and messaging setup before the API and Worker start.
+   - **Upgrading to the release with "My sessions":** every user is signed out once, because sessions before this release have no server-side record. Users sign in again with their passkey. No data is lost.
    - Caddy obtains HTTPS certificates automatically.
    - Only ports 80/443 are public. Databases, queues, cache and storage stay on a private network.
 5. Back up the `postgres_data` and `rustfs_data` volumes regularly (for example a nightly `pg_dump` plus a volume snapshot).

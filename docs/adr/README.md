@@ -11,5 +11,6 @@ Decisions that shape the code. Each file is `NNN-short-title.md` with Status, Co
 | [0004](0004-image-processing-skiasharp.md) | Avatar image processing with SkiaSharp | accepted |
 | [0005](0005-immediate-session-revocation.md) | Immediate session revocation with a cached security stamp | accepted |
 | [0006](0006-audit-trail.md) | Audit trail written by a SaveChanges interceptor | accepted |
+| [0007](0007-server-side-session-records.md) | Server-side session records (my sessions) | accepted |
 
 Add new decisions here as `NNN-short-title.md` and link them from this table.

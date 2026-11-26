@@ -1,6 +1,8 @@
 using AspireBoot.Core;
+using AspireBoot.Core.Messaging.Identity;
 using AspireBoot.Core.Persistence;
 using AspireBoot.Worker.Identity.Notifications.SendConfirmationEmail;
+using AspireBoot.Worker.Identity.Sessions.CleanupUserSessions;
 
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -30,6 +32,11 @@ builder.AddNpgsqlDbContext<AppDbContext>(
     options => options.UseAspireBootNpgsql(builder.Configuration.GetConnectionString(AppDbContext.ConnectionName)));
 builder.AddRedisDistributedCache("redis");
 
+builder.Services.AddOptions<UserSessionsCleanupOptions>()
+    .Bind(builder.Configuration.GetSection(UserSessionsCleanupOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 builder.Services.AddDataProtection()
     .SetApplicationName("AspireBoot")
     .PersistKeysToDbContext<AppDbContext>();
@@ -46,6 +53,9 @@ builder.Host.UseWolverine(options =>
     options.ListenToRabbitQueue("identity-notifications");
     options.ListenToRabbitQueue("identity-avatars");
     options.Discovery.IncludeAssembly(typeof(SendConfirmationEmailHandler).Assembly);
+
+    // Daily at 03:17 UTC on one node; a run still in progress is skipped, and a missed or failed run is caught up by the next one.
+    options.Schedules.ScheduleRecurring<CleanupUserSessions>("17 3 * * *", TimeZoneInfo.Utc).SkipWhileRunning();
 
     options.Services.CritterStackDefaults(defaults =>
     {

@@ -1,8 +1,10 @@
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { I18n } from '../i18n/i18n';
+import { Session } from '../../identity/shared/session';
 import { ApiProblem, problemInterceptor } from './problem.interceptor';
 import en from '../../../../public/i18n/en-US.json';
 
@@ -67,6 +69,7 @@ describe('problemInterceptor', () => {
       'identity.invalidLink': 'errors.invalidLink',
       'identity.passkeyFailed': 'errors.passkeyFailed',
       'identity.signInFailed': 'errors.signInFailed',
+      'identity.signInRequired': 'errors.signInRequired',
       'antiforgery.invalid': 'errors.antiforgery',
     };
     for (const [code, key] of Object.entries(cases)) {
@@ -129,5 +132,62 @@ describe('problemInterceptor', () => {
 
     expect(error.status).toBe(0);
     expect(error.message).toBe(en['errors.network']);
+  });
+  it('redirects to sign-in on 401 from a signed-in API call', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+    await failWith((request) => request.flush(null, { status: 401, statusText: 'Unauthorized' }));
+
+    expect(navigate).toHaveBeenCalledWith('/signin');
+  });
+
+  it('clears the session state when it redirects after a 401', async () => {
+    vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const markSignedOut = vi.spyOn(TestBed.inject(Session), 'markSignedOut');
+
+    await failWith((request) => request.flush(null, { status: 401, statusText: 'Unauthorized' }));
+
+    expect(markSignedOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('redirects on 401 from a sub-resource of the current-user path', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const result = firstValueFrom(http.get('/api/identity/account/me/avatar')).catch(
+      (e: unknown) => e,
+    );
+    httpTesting
+      .expectOne('/api/identity/account/me/avatar')
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    await result;
+
+    expect(navigate).toHaveBeenCalledWith('/signin');
+  });
+
+  it('does not redirect on 401 from the current-user probe with a query string', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const result = firstValueFrom(http.get('/api/identity/account/me?x=1')).catch(
+      (e: unknown) => e,
+    );
+    httpTesting
+      .expectOne('/api/identity/account/me?x=1')
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    await result;
+
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect on 401 from the current-user probe', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const result = firstValueFrom(http.get('/api/identity/account/me')).catch((e: unknown) => e);
+    httpTesting
+      .expectOne('/api/identity/account/me')
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    await result;
+
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

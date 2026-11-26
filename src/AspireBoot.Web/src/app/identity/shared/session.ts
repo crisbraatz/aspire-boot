@@ -64,6 +64,12 @@ export class Session {
     return this.refresh();
   }
 
+  /** Drops the signed-in state without calling the server, after the server ended the session (a 401). */
+  markSignedOut(): void {
+    this.user.set(null);
+    this.loaded.set(true);
+  }
+
   async signOut(): Promise<void> {
     await this.api.signOut();
     this.user.set(null);

@@ -1,6 +1,8 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
-import { inject } from '@angular/core';
+import { Injector, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
+import { Session } from '../../identity/shared/session';
 import { I18n } from '../i18n/i18n';
 
 /** An API failure with a localized message. `code` is the Problem Details `code` extension, when present. */
@@ -22,15 +24,35 @@ const MESSAGE_IDS: Readonly<Record<string, string>> = {
   'identity.invalidLink': 'errors.invalidLink',
   'identity.passkeyFailed': 'errors.passkeyFailed',
   'identity.signInFailed': 'errors.signInFailed',
+  'identity.signInRequired': 'errors.signInRequired',
   'antiforgery.invalid': 'errors.antiforgery',
+  'identity.sessionNotFound': 'errors.sessionNotFound',
+  'identity.currentSession': 'errors.currentSession',
 };
+
+/** Requests that answer 401 to an anonymous visitor by design, so they never redirect. */
+const ANONYMOUS_OK_PREFIXES: readonly string[] = ['/api/identity/auth/'];
+const CURRENT_USER_PATH = '/api/identity/account/me';
+
+function answersAnonymously(url: string): boolean {
+  const path = url.split(/[?#]/, 1)[0];
+  return path === CURRENT_USER_PATH || ANONYMOUS_OK_PREFIXES.some((p) => path.includes(p));
+}
 
 /** Turns every HTTP error into an ApiProblem with a localized message, including 429 with the retry time. */
 export const problemInterceptor: HttpInterceptorFn = (request, next) => {
   const i18n = inject(I18n);
+  const router = inject(Router);
+  const injector = inject(Injector);
   return next(request).pipe(
     catchError((error: unknown) => {
       if (!(error instanceof HttpErrorResponse)) return throwError(() => error);
+      // The session ended (signed out elsewhere, revoked or expired): send the visitor to sign in.
+      if (error.status === 401 && !answersAnonymously(request.url)) {
+        // Lazy: Session depends on HttpClient, which depends on this interceptor.
+        injector.get(Session).markSignedOut();
+        void router.navigateByUrl('/signin');
+      }
       return throwError(() => toApiProblem(error, i18n));
     }),
   );

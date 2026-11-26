@@ -32,6 +32,7 @@ fetched: 2026-11-25
 - Explicit max lengths, required flags and snake_case naming (EFCore.NamingConventions or explicit configuration). Store timestamps as `timestamptz` (UTC `DateTimeOffset`).
 - Indexes: declare every query-driven index in the configuration (unique normalized email, filters and sort columns used by lists). Remove indexes nothing uses.
 - Concurrency: optimistic concurrency token on aggregates edited concurrently (Npgsql `xmin` system column as a row version; verify the mapping API against Npgsql docs). Handle `DbUpdateConcurrencyException` → 409 Problem Details.
+  - **Documented exception: `user_sessions` has no `xmin`** (ADR 0007). Revoke is idempotent (`revoked_at` goes from null to a timestamp once), and the heartbeat `UPDATE` matches only unrevoked, unexpired rows. A heartbeat between another request's load and save must not fail a revocation with a 409. Under READ COMMITTED neither order can un-revoke a session. Do not add `xmin` to `UserSession` without revisiting ADR 0007.
 
 ## Querying
 - Reads: `AsNoTracking()` + `Select` projection into the response record. Never load full entities to return DTOs.
@@ -39,6 +40,8 @@ fetched: 2026-11-25
 - No lazy loading (N+1). Use `Include` only for aggregate loading. Use `AsSplitQuery()` when including two or more collections.
 - Pagination: `OrderBy` on a unique key (add the PK as a tiebreaker) + `Take`, and keyset for deep lists. Never `ToList()` and then filter in memory.
 - Bulk changes: `ExecuteUpdateAsync`/`ExecuteDeleteAsync` (these bypass the change tracker and domain events, so use them only for maintenance jobs).
+  - Session heartbeat (ADR 0007): a conditional `ExecuteUpdateAsync` with the owner, `revoked_at IS NULL`, `expires_at > now` and `last_seen_at < now - throttle` in the `WHERE`. Only one of several concurrent requests matches a row. It is not audited, on purpose: it is telemetry and would write a row every few minutes per device.
+  - Session cleanup: `ExecuteDeleteAsync` in batches of 1000 selected by id, unaudited, after a retention period.
 - Parameterized queries only. Never concatenate SQL. `FromSql` with interpolation (parameterized) as a last resort.
 - `AddDbContextPool` where Wolverine integration allows. Avoid per-request state in `OnConfiguring`.
 
@@ -75,3 +78,4 @@ fetched: 2026-11-25
 - `ExecuteUpdate` inside a Wolverine handler without an Eager transaction escapes the outbox.
 - Writing `audit_entries` by hand, or relying on `ExecuteUpdate` for an audited change (no audit row).
 - Registering the audit interceptor after `AddNpgsqlDbContext`, which leaves pooled contexts without it.
+- Updating a session through a tracked entity after a heartbeat wrote through `ExecuteUpdate`, then saving the stale state. Invalidate the cache instead of writing it back.

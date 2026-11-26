@@ -45,6 +45,9 @@ internal static class IdentityMetrics
     private static readonly Counter<long> RolesChanged = Meter.CreateCounter<long>(
         "aspireboot.identity.roles_changed", "{change}", "Role changes made by administrators, tagged by the new role.");
 
+    private static readonly Counter<long> SessionsEnded = Meter.CreateCounter<long>(
+        "aspireboot.identity.sessions.ended", "{session}", "Sessions ended, tagged by reason (user, others, signout or stamp).");
+
     private static readonly Counter<long> RateLimited = Meter.CreateCounter<long>(
         "aspireboot.identity.rate_limited", "{request}", "Requests rejected with 429, tagged by rate-limit policy.");
 
@@ -74,6 +77,10 @@ internal static class IdentityMetrics
     /// <param name="role">The new role name (Admin or User): a fixed, low-cardinality set.</param>
     public static void RecordRoleChanged(string role) =>
         RolesChanged.Add(1, new KeyValuePair<string, object?>("role", role));
+
+    /// <param name="reason">user, others, signout or stamp: a fixed, low-cardinality set.</param>
+    public static void RecordSessionsEnded(string reason, int count) =>
+        SessionsEnded.Add(count, new KeyValuePair<string, object?>("reason", reason));
 
     public static void RecordRateLimited(string policy) =>
         RateLimited.Add(1, new KeyValuePair<string, object?>("policy", policy));

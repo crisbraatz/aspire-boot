@@ -109,4 +109,28 @@ public static class IdentityFlow
             keepSignedIn,
         }), ct);
     }
+
+    public const string SessionCookieName = "__Host-aspireboot";
+
+    /// <summary>The value of the session cookie set by a sign-in response, or null when it set none.</summary>
+    public static string? SessionCookie(HttpResponseMessage response) => SessionCookieHeader(response)?.Split(';')[0][(SessionCookieName.Length + 1)..];
+
+    /// <summary>True when the session cookie of the response carries an expiry, i.e. it is persistent.</summary>
+    public static bool IsPersistentCookie(HttpResponseMessage response) =>
+        SessionCookieHeader(response)?.Contains("expires=", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>Calls GET /api/identity/account/me with the given raw session cookie, on a client of its own.</summary>
+    public static async Task<HttpStatusCode> StatusWithCookieAsync(AspireBootApiFactory factory, string cookieValue, CancellationToken ct)
+    {
+        using var http = factory.CreateHttpsClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("/api/identity/account/me", UriKind.Relative));
+        request.Headers.Add("Cookie", $"{SessionCookieName}={cookieValue}");
+        using var response = await http.SendAsync(request, ct);
+        return response.StatusCode;
+    }
+
+    private static string? SessionCookieHeader(HttpResponseMessage response) =>
+        response.Headers.TryGetValues("Set-Cookie", out var cookies)
+            ? cookies.FirstOrDefault(cookie => cookie.StartsWith(SessionCookieName + "=", StringComparison.Ordinal))
+            : null;
 }

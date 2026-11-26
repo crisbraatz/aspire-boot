@@ -64,6 +64,8 @@ builder.Host.UseWolverine(opts =>
 - **Idempotent by design** (redelivery happens): check state before acting, and use natural keys.
 - Validation failure in a handler means log + discard (no HTTP semantics).
 - Scheduled/recurring: `opts.Schedules.ScheduleRecurring<CleanupOrphanAvatarsMessage>("0 3 * * *")` with `SkipWhileRunning()`. Missed runs are skipped.
+  - Example (feature 004, session cleanup): `opts.Schedules.ScheduleRecurring<CleanupUserSessions>("17 3 * * *", TimeZoneInfo.Utc).SkipWhileRunning();`. The time zone is explicit (UTC), so the cron does not depend on the host. The handler deletes in batches of 1000 with `ExecuteDeleteAsync` and logs counts only.
+  - A recurring message has no tracking row in Wolverine's timer agent. Test it through `Options.Schedules.FindByName` or `IRecurringScheduleControl`, not by waiting for a row to appear.
 
 ## Errors and retries
 - Global: transient DB/network errors → `RetryWithCooldown(50ms, 250ms, 1s)` with jitter, then `MoveToErrorQueue()`. Invalid input → `Discard()`.

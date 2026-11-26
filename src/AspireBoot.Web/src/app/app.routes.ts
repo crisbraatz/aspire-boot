@@ -51,6 +51,13 @@ export const routes: Routes = [
       import('./identity/account/passkeys/passkeys.page').then((m) => m.PasskeysPage),
   },
   {
+    path: 'account/sessions',
+    title: 'account.sessions.title',
+    canMatch: [authGuard],
+    loadComponent: () =>
+      import('./identity/account/sessions/sessions.page').then((m) => m.SessionsPage),
+  },
+  {
     path: 'admin/users',
     title: 'admin.users.title',
     canMatch: [authGuard, adminGuard],

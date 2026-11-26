@@ -3,6 +3,7 @@ using System.Text.Json;
 using AspireBoot.Api.Identity.Shared;
 using AspireBoot.Api.Shared;
 using AspireBoot.Core.Identity.Domain;
+using AspireBoot.Core.Persistence.Auditing;
 
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
@@ -29,7 +30,11 @@ internal sealed partial class SignInEndpoint
         SignInRequest request,
         UserManager<User> users,
         SignInManager<User> signIn,
-        ILogger<SignInEndpoint> logger)
+        SessionSignIn sessionSignIn,
+        IAuditActorOverride auditActor,
+        HttpContext httpContext,
+        ILogger<SignInEndpoint> logger,
+        CancellationToken cancellationToken)
     {
         if (request.Credential is not { ValueKind: JsonValueKind.Object } credential)
         {
@@ -43,7 +48,7 @@ internal sealed partial class SignInEndpoint
         }
 
         // Identity has no persistence flag on PasskeySignInAsync, so the assertion is run here and the cookie
-        // is issued with SignInAsync(user, keepSignedIn), as recorded in T2.
+        // is issued by SessionSignIn together with the session record (ADR 0007).
         var assertion = await signIn.PerformPasskeyAssertionAsync(credentialJson);
         if (!assertion.Succeeded || assertion.User is not { } user || !user.EmailConfirmed)
         {
@@ -60,7 +65,9 @@ internal sealed partial class SignInEndpoint
             }
         }
 
-        await signIn.SignInAsync(user, request.KeepSignedIn);
+        // The caller is anonymous: the audit row of the new session names the signed-in account as the actor.
+        using var actingAs = auditActor.ActAs(user.Id);
+        await sessionSignIn.SignInAsync(user, request.KeepSignedIn, httpContext, cancellationToken);
 
         IdentityMetrics.RecordSignIn(success: true);
         SignedIn(logger, user.Id);

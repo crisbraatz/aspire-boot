@@ -4,6 +4,7 @@
 - Date: 2026-11-25
 - Feature: 003 (user administration, immediate revocation and audit trail)
 - Related: ADR 0003 (session rules; the interval rule there is superseded by this ADR), ADR 0006 (audit trail)
+- Extended by ADR 0007 (every session is also a server-side record that is checked and revoked with the stamp)
 
 ## Context
 Recovery, passkey removal and role changes must end the other sessions of an account at once. ASP.NET Core Identity's built-in `SecurityStampValidator` checks the stamp on a timer, so a session can keep working for a while after the change. That delay matters most for admin access: a demoted Admin must lose access on the next request, not at the next check. A database read on every request is correct but adds a query to each call, so the check has to be cheap.

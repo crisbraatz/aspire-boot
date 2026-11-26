@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace AspireBoot.Api.Shared;
@@ -71,6 +72,17 @@ internal static class SecurityExtensions
         services.AddScoped<ISecurityStampSource, DatabaseSecurityStampSource>();
         services.AddScoped<ISecurityStampCache, SecurityStampCache>();
         services.AddScoped<SecurityStampPrincipalValidator>();
+
+        // Server-side session records (ADR 0007).
+        services.AddOptions<UserSessionOptions>()
+            .Bind(configuration.GetSection(UserSessionOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IUserSessionSource, DatabaseUserSessionSource>();
+        services.AddScoped<IUserSessionCache, UserSessionCache>();
+        services.AddScoped<IUserSessionHeartbeat, DatabaseUserSessionHeartbeat>();
+        services.AddScoped<SessionSignIn>();
 
         services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
         services.ConfigureApplicationCookie(options =>
